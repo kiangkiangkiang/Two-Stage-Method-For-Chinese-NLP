@@ -62,12 +62,13 @@ class LabelStudioDataConverter(object):
                 raw_text = ["".join(raw_text[:-1]), raw_text[-1]]
 
             label_list = []
-            for raw_label in example["annotations"][0]["result"][0]["value"]["choices"]:
-                if raw_label not in self.options:
-                    raise ValueError(
-                        f"Label `{raw_label}` not found in label candidates `options`. Please recheck the data."
-                    )
-                label_list.append(np.where(np.array(self.options) == raw_label)[0].tolist()[0])
+            if example["annotations"][0]["result"]:
+                for raw_label in example["annotations"][0]["result"][0]["value"]["choices"]:
+                    if raw_label not in self.options:
+                        raise ValueError(
+                            f"Label `{raw_label}` not found in label candidates `options`. Please recheck the data."
+                        )
+                    label_list.append(np.where(np.array(self.options) == raw_label)[0].tolist()[0])
 
             utc_examples.append(
                 {
