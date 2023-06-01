@@ -269,7 +269,7 @@ class MyPromptTrainer(PromptTrainer):
                 self.logits_collector[k] = paddle.to_tensor(0.0)
                 # self.logits_collector[k] = np.zeros((1, 46)) # 46 classes
                 self.accumulate_verdict[k] = 0
-        # breakpoint()
+        breakpoint()
         loss = 0
         for verdict_group in pd.unique(inputs["id"]):
 
@@ -686,7 +686,7 @@ def main():
 
     # Training.
     if training_args.do_train:
-        train_result = trainer.train(resume_from_checkpoint=None)
+        train_result = trainer.train(resume_from_checkpoint=training_args.resume_from_checkpoint)
         metrics = train_result.metrics
         trainer.save_model()
         trainer.log_metrics("train", metrics)

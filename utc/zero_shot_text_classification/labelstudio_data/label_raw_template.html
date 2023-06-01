@@ -1,0 +1,82 @@
+<View>
+    <View style=“box-shadow: 2px 2px 5px #999;
+               padding: 10px;
+               margin-top: 2em;
+               margin-right: 2em;
+               width: 300px;
+               border-radius: 5px;
+               float: left;“>
+      <Choices name=“medical” toName=“text” choice=“multiple” showInLine=“true”>
+          <View style=“box-shadow: 2px 2px 5px #999; padding: 5px;  “>
+              <Header value=“體傷部位” style=“text-align: center”/>
+              <Choice value=“頭頸部“/>
+              <Choice value=“臉”/>
+              <Choice value=“胸部“/>
+              <Choice value=“腹部“/>
+              <Choice value=“背部“/>
+              <Choice value=“骨盆“/>
+              <Choice value=“上肢“/>
+              <Choice value=“下肢“/>
+              <Choice value=“其他“/>
+        </View>
+        <View style=“box-shadow: 2px 2px 5px #999; padding: 5px;  “>
+              <Header value=“體傷型態” style=“text-align: center”/>
+              <Choice value=“骨折“/>
+              <Choice value=“骨裂“/>
+              <Choice value=“擦挫傷“/>
+              <Choice value=“撕裂傷“/>
+              <Choice value=“鈍傷“/>
+              <Choice value=“損傷“/>
+              <Choice value=“胸部損傷“/>
+              <Choice value=“神經損傷“/>
+              <Choice value=“拉傷“/>
+              <Choice value=“扭傷“/>
+              <Choice value=“灼傷“/>
+              <Choice value=“脫位“/>
+              <Choice value=“壓迫“/>
+              <Choice value=“破缺損“/>
+              <Choice value=“腦震盪“/>
+              <Choice value=“壞死“/>
+              <Choice value=“內出血“/>
+              <Choice value=“水腫“/>
+              <Choice value=“瘀血“/>
+              <Choice value=“栓塞“/>
+              <Choice value=“剝離“/>
+              <Choice value=“截肢“/>
+              <Choice value=“衰竭“/>
+              <Choice value=“休克“/>
+              <Choice value=“失能“/>
+              <Choice value=“死亡“/>
+              <Choice value=“其他“/>
+        </View>
+        <View style=“box-shadow: 2px 2px 5px #999; padding: 5px;  “>
+              <Header value=“肇事責任比例（原告(四捨五入)/被告）” style=“text-align: center”/>
+              <Choice value=“肇責 0/100”/>
+              <Choice value=“肇責 10/90"/>
+              <Choice value=“肇責 20/80”/>
+              <Choice value=“肇責 30/70"/>
+              <Choice value=“肇責 40/60”/>
+              <Choice value=“肇責 50/50"/>
+              <Choice value=“肇責 60/40”/>
+              <Choice value=“肇責 70/30"/>
+              <Choice value=“肇責 80/20”/>
+              <Choice value=“肇責 90/10"/>
+              <Choice value=“肇責 100/0”/>
+         </View>
+         <View style=“box-shadow: 2px 2px 5px #999; padding: 5px;  “>
+             <Header value=“年齡” style=“text-align: center”/>
+             <Choice value=“未滿18歲(高中以下)“/>
+             <Choice value=“18-24歲(大學、研究所)“/>
+             <Choice value=“25-29歲“/>
+             <Choice value=“30-39歲“/>
+             <Choice value=“40-49歲“/>
+             <Choice value=“50-59歲“/>
+             <Choice value=“60-64歲“/>
+             <Choice value=“65歲以上(退休)“/>
+         </View>
+    </Choices>
+   </View>
+    <Text name=“text” value=“$text”/>
+</View><!-- {
+  “data”: {“text”: “This is a great 3D movie that delivers everything almost right in your face.“}
+} -->

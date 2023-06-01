@@ -22,11 +22,12 @@ from utils import UTCLoss, read_local_dataset
 
 from paddlenlp.datasets import load_dataset
 from paddlenlp.prompt import (
-    PromptModelForSequenceClassification,
     PromptTrainer,
     PromptTuningArguments,
     UTCTemplate,
 )
+from modeling import PromptModelForSequenceClassification
+from utc_trainer import myUTCTrainer
 from paddlenlp.trainer import PdArgumentParser
 from paddlenlp.transformers import UTC, AutoTokenizer, export_model
 
@@ -117,7 +118,7 @@ def main():
 
         return {"micro_f1": micro_f1, "macro_f1": macro_f1}
 
-    trainer = PromptTrainer(
+    trainer = myUTCTrainer(
         model=prompt_model,
         tokenizer=tokenizer,
         args=training_args,

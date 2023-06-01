@@ -62,9 +62,11 @@ class LabelStudioDataConverter(object):
                 raw_text = ["".join(raw_text[:-1]), raw_text[-1]]
 
             label_list = []
+            # breakpoint()
             if example["annotations"][0]["result"]:
                 for raw_label in example["annotations"][0]["result"][0]["value"]["choices"]:
                     if raw_label not in self.options:
+                        breakpoint()
                         raise ValueError(
                             f"Label `{raw_label}` not found in label candidates `options`. Please recheck the data."
                         )
