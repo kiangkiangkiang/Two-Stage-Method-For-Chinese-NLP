@@ -22,6 +22,70 @@ import paddle
 from paddlenlp.utils.log import logger
 
 
+def read_local_dataset_by_chunk(data_path, data_file=None, is_test=False, max_seq_len=512, template_tokens_len=None):
+    """
+    Load datasets with one example per line, formated as:
+        {"text_a": X, "text_b": X, "question": X, "choices": [A, B], "labels": [0, 1]}
+    """
+    if data_file is not None:
+        file_paths = [os.path.join(data_path, fname) for fname in os.listdir(data_path) if fname.endswith(data_file)]
+    else:
+        file_paths = [data_path]
+    skip_count = 0
+    max_content_len = max_seq_len - template_tokens_len
+    std_keys = ["text_a", "text_b", "question", "choices", "labels"]
+    verdict_id = 0
+
+    for file_path in file_paths:
+        with open(file_path, "r", encoding="utf-8") as fp:
+            for example in fp:
+                example = json.loads(example.strip())
+                total_chunks = 0
+                example_collector = []
+                while example["text_a"]:
+                    this_example = example.copy()
+                    this_example["text_a"] = example["text_a"][:max_content_len]
+                    # logger.debug(this_example["text_a"])
+                    if (
+                        len(this_example["choices"]) < 2
+                        or not isinstance(this_example["text_a"], str)
+                        or len(this_example["text_a"]) < 3
+                    ):
+                        skip_count += 1
+                        break
+                    if "text_b" not in this_example:
+                        this_example["text_b"] = ""
+                    if not is_test or "labels" in this_example:
+                        if not isinstance(this_example["labels"], list):
+                            this_example["labels"] = [this_example["labels"]]
+                        one_hots = np.zeros(len(this_example["choices"]), dtype="float32")
+                        for x in this_example["labels"]:
+                            one_hots[x] = 1
+                        this_example["labels"] = one_hots.tolist()
+
+                    if is_test:
+                        example_collector.append(this_example)
+                        # yield this_example
+                        continue
+                    std_keys = ["text_a", "text_b", "question", "choices", "labels"]
+                    # std_example = {k: this_example[k] for k in std_keys if k in this_example}
+                    example_collector.append({k: this_example[k] for k in std_keys if k in this_example})
+                    # yield std_example
+
+                    example["text_a"] = example["text_a"][max_content_len:]
+                    total_chunks += 1
+
+                logger.debug(f"{verdict_id}")
+                for each_example in example_collector:
+                    each_example["id"] = verdict_id
+                    each_example["total_chunks"] = total_chunks
+                    yield each_example
+
+                verdict_id += 1
+
+    logger.warning(f"Skip {skip_count} examples.")
+
+
 def read_local_dataset(data_path, data_file=None, is_test=False):
     """
     Load datasets with one example per line, formated as:
@@ -56,6 +120,24 @@ def read_local_dataset(data_path, data_file=None, is_test=False):
                 std_example = {k: example[k] for k in std_keys if k in example}
                 yield std_example
     logger.warning(f"Skip {skip_count} examples.")
+
+
+def get_template_tokens_len(tokenizer, label_file):
+    """
+    Template: [CLS] [O-MASK] label-1 [O-MASK] label-2 ... [O-MASK] label-end [SEP] contents [SEP] [SEP]
+
+    Args:
+        tokenizer (_type_): _description_
+        label_file (_type_): _description_
+    """
+    all_labels = []
+    with open(label_file, "r") as f:
+        for each_label in f:
+            all_labels.append("[O-MASK]")
+            all_labels.append(each_label.strip())
+    text = "".join(all_labels)
+    prefix_text = tokenizer.convert_ids_to_tokens(tokenizer(text)["input_ids"])
+    return len(prefix_text) + 2  # 2 means the last two [SEP]
 
 
 class UTCLoss(object):

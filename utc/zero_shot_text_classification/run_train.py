@@ -18,7 +18,7 @@ import paddle
 from paddle.metric import Accuracy
 from paddle.static import InputSpec
 from sklearn.metrics import f1_score
-from utils import UTCLoss, read_local_dataset
+from utils import UTCLoss, read_local_dataset, get_template_tokens_len, read_local_dataset_by_chunk
 
 from paddlenlp.datasets import load_dataset
 from paddlenlp.prompt import (
@@ -26,10 +26,11 @@ from paddlenlp.prompt import (
     PromptTuningArguments,
     UTCTemplate,
 )
-from modeling import PromptModelForSequenceClassification
+from modeling import PromptModelForSequenceClassification, myDataCollator
 from utc_trainer import myUTCTrainer
 from paddlenlp.trainer import PdArgumentParser
 from paddlenlp.transformers import UTC, AutoTokenizer, export_model
+import os
 
 
 @dataclass
@@ -72,17 +73,23 @@ def main():
     # Define template for preprocess and verbalizer for postprocess.
     template = UTCTemplate(tokenizer, training_args.max_seq_length)
 
+    template_tokens_len = get_template_tokens_len(tokenizer, os.path.join(data_args.dataset_path, "label.txt"))
+
     # Load and preprocess dataset.
     train_ds = load_dataset(
-        read_local_dataset,
+        read_local_dataset_by_chunk,
         data_path=data_args.dataset_path,
         data_file=data_args.train_file,
+        max_seq_len=training_args.max_seq_length,
+        template_tokens_len=template_tokens_len,
         lazy=False,
     )
     dev_ds = load_dataset(
-        read_local_dataset,
+        read_local_dataset_by_chunk,
         data_path=data_args.dataset_path,
         data_file=data_args.dev_file,
+        max_seq_len=training_args.max_seq_length,
+        template_tokens_len=template_tokens_len,
         lazy=False,
     )
 
@@ -125,6 +132,7 @@ def main():
         criterion=criterion,
         train_dataset=train_ds,
         eval_dataset=dev_ds,
+        data_collator=myDataCollator(tokenizer, padding=True, return_tensors="pd"),
         callbacks=None,
         compute_metrics=compute_metrics_single_label if data_args.single_label else compute_metrics,
     )

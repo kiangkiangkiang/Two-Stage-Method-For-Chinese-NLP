@@ -23,12 +23,29 @@ from paddlenlp.transformers.model_outputs import (
     MultipleChoiceModelOutput,
     SequenceClassifierOutput,
 )
-from paddlenlp.prompt.prompt_utils import signature
+from paddlenlp.prompt.prompt_utils import signature, PromptDataCollatorWithPadding
 from paddlenlp.prompt.template import PrefixTemplate, Template
 from paddlenlp.prompt.verbalizer import Verbalizer
+from dataclasses import dataclass
+from typing import List, Dict, Any
 
 # ''.join(self.tokenizer.convert_ids_to_tokens(inputs['input_ids'][0, :]))
 # len(''.join(self.tokenizer.convert_ids_to_tokens(inputs['input_ids'][0, :])))
+
+
+@dataclass
+class myDataCollator(PromptDataCollatorWithPadding):
+    default_model_input_names: List = (
+        "input_ids",
+        "token_type_ids",
+        "special_tokens_mask",
+        "offset_mapping",
+        "position_ids",
+        "id",
+        "total_chunks",
+    )
+
+
 class PromptModelForSequenceClassification(paddle.nn.Layer):
     """
     PromptModel for classification tasks.
