@@ -31,8 +31,10 @@ from paddlenlp.prompt import (
 from modeling import PromptModelForSequenceClassification, myDataCollator
 from utc_trainer import myUTCTrainer
 from paddlenlp.trainer import PdArgumentParser
-from paddlenlp.transformers import UTC, AutoTokenizer, export_model
+from paddlenlp.transformers import AutoTokenizer, export_model
+from modeling import myUTC, myUTCTemplate
 import os
+from paddlenlp.utils.log import logger
 
 
 @dataclass
@@ -70,10 +72,10 @@ def main():
 
     # Load the pretrained language model.
     tokenizer = AutoTokenizer.from_pretrained(model_args.model_name_or_path)
-    model = UTC.from_pretrained(model_args.model_name_or_path)
+    model = myUTC.from_pretrained(model_args.model_name_or_path)
 
     # Define template for preprocess and verbalizer for postprocess.
-    template = UTCTemplate(tokenizer, training_args.max_seq_length)
+    template = myUTCTemplate(tokenizer, training_args.max_seq_length)
 
     template_tokens_len = get_template_tokens_len(tokenizer, os.path.join(data_args.dataset_path, "label.txt"))
 
@@ -117,7 +119,7 @@ def main():
 
     def compute_metrics_paddle(eval_preds):
         metric = MetricReport()
-        preds = F.sigmoid(paddle.to_tensor(eval_preds.predictions))
+        preds = paddle.to_tensor(eval_preds.predictions)
         metric.reset()
         metric.update(preds, paddle.to_tensor(eval_preds.label_ids))
         micro_f1_score, macro_f1_score, accuracy, precision, recall = metric.accumulate()
@@ -138,11 +140,15 @@ def main():
         preds = paddle.to_tensor(eval_preds.predictions)
         preds = paddle.nn.functional.sigmoid(preds)
 
-        breakpoint()
-        preds = preds[labels != -100]
-        labels = labels[labels != -100]
+        logger.debug(preds)
+
+        # breakpoint()
+        # preds = preds[labels != -100]
+        # labels = labels[labels != -100]
         preds = preds > data_args.threshold
-        breakpoint()
+        logger.info(f"Number of All True 1 labels: {paddle.sum(labels==1).item()}")
+        logger.info(f"Number of All Predict 1 label: {paddle.sum(preds).item()}")
+        # breakpoint()
 
         metric.update(preds, labels)
         micro_f1_score, macro_f1_score, accuracy, precision, recall = metric.accumulate()

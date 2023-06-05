@@ -149,7 +149,7 @@ if __name__ == "__main__":
     # yapf: disable
     parser = argparse.ArgumentParser()
 
-    parser.add_argument("--label_studio_file", default="./data/label_studio.json", type=str, help="The annotation file exported from label studio platform.")
+    parser.add_argument("--label_studio_file", default="./labelstudio_data/label_studio_output.json", type=str, help="The annotation file exported from label studio platform.")
     parser.add_argument("--save_dir", default="./data", type=str, help="The path of data that you wanna save.")
     parser.add_argument("--splits", default=[0.8, 0.1, 0.1], type=float, nargs="*", help="The ratio of samples in datasets. [0.6, 0.2, 0.2] means 60% samples used for training, 20% for evaluation and 20% for test.")
     parser.add_argument("--text_separator", type=str, default='\t', help="Separator for classification with two input texts.")
