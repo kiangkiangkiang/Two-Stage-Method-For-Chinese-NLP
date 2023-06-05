@@ -13,8 +13,10 @@
 # limitations under the License.
 
 from dataclasses import dataclass, field
+from metric import MetricReport
 
 import paddle
+import paddle.nn.functional as F
 from paddle.metric import Accuracy
 from paddle.static import InputSpec
 from sklearn.metrics import f1_score
@@ -113,17 +115,50 @@ def main():
         acc = metric.accumulate()
         return {"accuracy": acc}
 
-    def compute_metrics(eval_preds):
+    def compute_metrics_paddle(eval_preds):
+        metric = MetricReport()
+        preds = F.sigmoid(paddle.to_tensor(eval_preds.predictions))
+        metric.reset()
+        metric.update(preds, paddle.to_tensor(eval_preds.label_ids))
+        micro_f1_score, macro_f1_score, accuracy, precision, recall = metric.accumulate()
+        metric.reset()
+        return {
+            "eval_micro_f1": micro_f1_score,
+            "eval_macro_f1": macro_f1_score,
+            "accuracy_score": accuracy,
+            "precision_score": precision,
+            "recall_score": recall,
+        }
+
+    def compute_metrics_sklearn(eval_preds):
+        metric = MetricReport()
+        metric.reset()
+
         labels = paddle.to_tensor(eval_preds.label_ids, dtype="int64")
         preds = paddle.to_tensor(eval_preds.predictions)
         preds = paddle.nn.functional.sigmoid(preds)
-        preds = preds[labels != -100].numpy()
-        labels = labels[labels != -100].numpy()
-        preds = preds > data_args.threshold
-        micro_f1 = f1_score(y_pred=preds, y_true=labels, average="micro")
-        macro_f1 = f1_score(y_pred=preds, y_true=labels, average="macro")
 
-        return {"micro_f1": micro_f1, "macro_f1": macro_f1}
+        breakpoint()
+        preds = preds[labels != -100]
+        labels = labels[labels != -100]
+        preds = preds > data_args.threshold
+        breakpoint()
+
+        metric.update(preds, labels)
+        micro_f1_score, macro_f1_score, accuracy, precision, recall = metric.accumulate()
+        metric.reset()
+
+        # micro_f1 = f1_score(y_pred=preds, y_true=labels, average="micro")
+        # macro_f1 = f1_score(y_pred=preds, y_true=labels, average="macro")
+
+        # return {"micro_f1": micro_f1, "macro_f1": macro_f1}
+        return {
+            "eval_micro_f1": micro_f1_score,
+            "eval_macro_f1": macro_f1_score,
+            "accuracy_score": accuracy,
+            "precision_score": precision,
+            "recall_score": recall,
+        }
 
     trainer = myUTCTrainer(
         model=prompt_model,
@@ -134,8 +169,9 @@ def main():
         eval_dataset=dev_ds,
         data_collator=myDataCollator(tokenizer, padding=True, return_tensors="pd"),
         callbacks=None,
-        compute_metrics=compute_metrics_single_label if data_args.single_label else compute_metrics,
+        compute_metrics=compute_metrics_sklearn,
     )
+    # compute_metrics=compute_metrics_single_label if data_args.single_label else compute_metrics,
 
     # Training.
     if training_args.do_train:
