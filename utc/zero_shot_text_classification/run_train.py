@@ -28,9 +28,9 @@ from paddlenlp.prompt import (
     PromptTuningArguments,
     UTCTemplate,
 )
-from paddlenlp.prompt import PromptModelForSequenceClassification
+# from paddlenlp.prompt import PromptModelForSequenceClassification
 
-# from modeling import PromptModelForSequenceClassification,
+from modeling import PromptModelForSequenceClassification,
 from modeling import myDataCollator
 from utc_trainer import myUTCTrainer
 from paddlenlp.trainer import PdArgumentParser

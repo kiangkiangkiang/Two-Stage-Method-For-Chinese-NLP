@@ -580,7 +580,7 @@ class myUTCTrainer(PromptTrainer):
 
         return (loss, logits, labels)
 
-    def compute_loss(self, model, inputs, return_outputs=False):
+    def compute_loss_tmp(self, model, inputs, return_outputs=False):
         """
         How the loss is computed by Trainer. By default, all models return the loss in the first element.
         Subclass and override for custom behavior.
@@ -660,7 +660,7 @@ class myUTCTrainer(PromptTrainer):
 
         return (loss, logits, labels_output) if return_outputs else loss
 
-    def compute_loss_tmp(self, model, inputs, return_outputs=False):
+    def compute_loss(self, model, inputs, return_outputs=False):
         """
         How the loss is computed by Trainer. By default, all models return the loss in the first element.
         Subclass and override for custom behavior.
