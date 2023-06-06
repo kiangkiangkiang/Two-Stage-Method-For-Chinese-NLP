@@ -363,44 +363,43 @@ class PromptModelForSequenceClassification(paddle.nn.Layer):
         return_hidden_states = kwargs.get("return_hidden_states", False)
         this_kwargs = {}
         model_outputs = paddle.to_tensor([0.0])
-        # for i in range(len(input_ids)):
-        # for k in kwargs:
-        #    this_kwargs[k] = kwargs[k][i]
-        input_dict = {
-            "input_ids": input_ids,
-            "token_type_ids": token_type_ids,
-            "position_ids": position_ids,
-            "masked_positions": masked_positions,
-            "soft_token_ids": soft_token_ids,
-            "attention_mask": attention_mask,
-            "encoder_ids": encoder_ids,
-            **kwargs,
-        }
-        input_dict = self.template.process_batch(input_dict)
-        input_dict = {**input_dict, **this_kwargs}
-        model_inputs = {k: input_dict[k] for k in input_dict if k in self.forward_keys}
-        if "masked_positions" in model_inputs:
-            model_inputs.pop("masked_positions")
+        for i in range(len(input_ids)):
+            for k in kwargs:
+                this_kwargs[k] = kwargs[k][i]
+            input_dict = {
+                "input_ids": input_ids[i],
+                "token_type_ids": token_type_ids[i],
+                "position_ids": position_ids[i],
+                "masked_positions": masked_positions,
+                "soft_token_ids": soft_token_ids[i],
+                "attention_mask": attention_mask[i],
+                "encoder_ids": encoder_ids,
+                **this_kwargs,
+            }
+            input_dict = self.template.process_batch(input_dict)
+            input_dict = {**input_dict, **this_kwargs}
+            model_inputs = {k: input_dict[k] for k in input_dict if k in self.forward_keys}
+            if "masked_positions" in model_inputs:
+                model_inputs.pop("masked_positions")
 
-        model_outputs = self.plm(**model_inputs, return_dict=True)
-        """
-        if i == len(input_ids) - 1:
-            # model_outputs += paddle.mean(self.plm(**model_inputs, return_dict=True).logits, 0, keepdim=True)
-            model_outputs += paddle.mean(self.plm(**model_inputs, return_dict=True).logits, 0, keepdim=True)
+            # model_outputs = self.plm(**model_inputs, return_dict=True)
 
-        else:
-            breakpoint()
-            model_outputs += paddle.mean(
-                self.plm(**model_inputs, return_dict=True, output_hidden_states=True).logits.detach(),
-                0,
-                keepdim=True,
-            )
-        
+            if i == len(input_ids) - 1:
+                # model_outputs += paddle.mean(self.plm(**model_inputs, return_dict=True).logits, 0, keepdim=True)
+                model_outputs += paddle.mean(self.plm(**model_inputs, return_dict=True).logits, 0, keepdim=True)
+
+            else:
+                model_outputs += paddle.mean(
+                    self.plm(**model_inputs, return_dict=True, output_hidden_states=True).logits.detach(),
+                    0,
+                    keepdim=True,
+                )
 
         # logger.debug(f"logits: {model_outputs / len(input_ids)}")
         # logger.debug(f"logits: {self.sigmoid(model_outputs / len(input_ids))}")
-        model_outputs = MultipleChoiceModelOutput(loss=None, logits=model_outputs, hidden_states=None, attentions=None)
-        """
+        model_outputs = MultipleChoiceModelOutput(
+            loss=None, logits=model_outputs / len(input_ids), hidden_states=None, attentions=None
+        )
 
         if isinstance(model_outputs, MaskedLMOutput):
             if self.verbalizer is not None:

@@ -31,7 +31,7 @@ from paddlenlp.prompt import (
 from modeling import PromptModelForSequenceClassification, myDataCollator
 from utc_trainer import myUTCTrainer
 from paddlenlp.trainer import PdArgumentParser
-from paddlenlp.transformers import AutoTokenizer, export_model
+from paddlenlp.transformers import AutoTokenizer, export_model, UTC
 from modeling import myUTC, myUTCTemplate
 import os
 from paddlenlp.utils.log import logger
@@ -72,10 +72,10 @@ def main():
 
     # Load the pretrained language model.
     tokenizer = AutoTokenizer.from_pretrained(model_args.model_name_or_path)
-    model = myUTC.from_pretrained(model_args.model_name_or_path)
+    model = UTC.from_pretrained(model_args.model_name_or_path)
 
     # Define template for preprocess and verbalizer for postprocess.
-    template = myUTCTemplate(tokenizer, training_args.max_seq_length)
+    template = UTCTemplate(tokenizer, training_args.max_seq_length)
 
     template_tokens_len = get_template_tokens_len(tokenizer, os.path.join(data_args.dataset_path, "label.txt"))
 
