@@ -2,7 +2,7 @@ import os
 import json
 from collections import defaultdict
 
-
+# test
 def collect_label_information(
     label_file: str = "/home/ubuntu/work_debug/verdict-cls-debug/utc/zero_shot_text_classification/data/label.txt",
 ):
