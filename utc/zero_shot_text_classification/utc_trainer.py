@@ -549,6 +549,7 @@ class myUTCTrainer(PromptTrainer):
             if has_labels:
                 with self.autocast_smart_context_manager():
                     loss, outputs, labels = self.compute_loss(model, inputs, return_outputs=True)
+
                 if not isinstance(loss, int):
                     loss = loss.mean().detach()
                 else:
@@ -579,7 +580,7 @@ class myUTCTrainer(PromptTrainer):
 
         return (loss, logits, labels)
 
-    def compute_loss_mean(self, model, inputs, return_outputs=False):
+    def compute_loss(self, model, inputs, return_outputs=False):
         """
         How the loss is computed by Trainer. By default, all models return the loss in the first element.
         Subclass and override for custom behavior.
@@ -659,7 +660,7 @@ class myUTCTrainer(PromptTrainer):
 
         return (loss, logits, labels_output) if return_outputs else loss
 
-    def compute_loss(self, model, inputs, return_outputs=False):
+    def compute_loss_tmp(self, model, inputs, return_outputs=False):
         """
         How the loss is computed by Trainer. By default, all models return the loss in the first element.
         Subclass and override for custom behavior.
@@ -702,8 +703,13 @@ class myUTCTrainer(PromptTrainer):
             logits = model(**self.inputs_collector[input_key])
             del self.accumulate_verdict[input_key]
             del self.inputs_collector[input_key]
-            labels_output = paddle.unsqueeze(labels[inputs["id"] == input_key][0], 0)
+            labels_output = paddle.unsqueeze(labels[inputs["id"] == input_key][0], 0).cpu()
             loss = self.criterion(logits, labels_output)
+            title = "Training" if model.training else "Evaluation"
+            logger.debug(
+                f"Loss of Verdict ID = {input_key}. Total Chunk in the Verdict = {inputs['total_chunks'][inputs['id'] == input_key][0].item()}"
+            )
+            logger.debug(f"{title} Loss {loss.item()}.")
 
         else:
             return (0, 0, 0) if return_outputs else 0
