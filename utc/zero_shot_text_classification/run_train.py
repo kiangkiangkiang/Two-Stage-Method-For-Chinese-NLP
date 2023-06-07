@@ -14,6 +14,7 @@
 
 from dataclasses import dataclass, field
 from metric import MetricReport
+# from paddlenlp.prompt import PromptTrainer
 
 import paddle
 import paddle.nn.functional as F
@@ -83,6 +84,7 @@ def main():
     template_tokens_len = get_template_tokens_len(tokenizer, os.path.join(data_args.dataset_path, "label.txt"))
 
     # Load and preprocess dataset.
+    '''
     train_ds = load_dataset(
         read_local_dataset_by_chunk,
         data_path=data_args.dataset_path,
@@ -93,6 +95,24 @@ def main():
     )
     dev_ds = load_dataset(
         read_local_dataset_by_chunk,
+        data_path=data_args.dataset_path,
+        data_file=data_args.dev_file,
+        max_seq_len=training_args.max_seq_length,
+        template_tokens_len=template_tokens_len,
+        lazy=False,
+    )
+    '''
+
+    train_ds = load_dataset(
+        read_local_dataset,
+        data_path=data_args.dataset_path,
+        data_file=data_args.train_file,
+        max_seq_len=training_args.max_seq_length,
+        template_tokens_len=template_tokens_len,
+        lazy=False,
+    )
+    dev_ds = load_dataset(
+        read_local_dataset,
         data_path=data_args.dataset_path,
         data_file=data_args.dev_file,
         max_seq_len=training_args.max_seq_length,
@@ -169,14 +189,14 @@ def main():
             "recall_score": recall,
         }
 
-    trainer = myUTCTrainer(
+    trainer = PromptTrainer(
         model=prompt_model,
         tokenizer=tokenizer,
         args=training_args,
         criterion=criterion,
         train_dataset=train_ds,
         eval_dataset=dev_ds,
-        data_collator=myDataCollator(tokenizer, padding=True, return_tensors="pd"),
+        # data_collator=myDataCollator(tokenizer, padding=True, return_tensors="pd"),
         callbacks=None,
         compute_metrics=compute_metrics_sklearn,
     )
