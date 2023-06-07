@@ -14,6 +14,7 @@
 
 from dataclasses import dataclass, field
 from metric import MetricReport
+
 # from paddlenlp.prompt import PromptTrainer
 
 import paddle
@@ -29,9 +30,10 @@ from paddlenlp.prompt import (
     PromptTuningArguments,
     UTCTemplate,
 )
-# from paddlenlp.prompt import PromptModelForSequenceClassification
 
-from modeling import PromptModelForSequenceClassification,
+from paddlenlp.prompt import PromptModelForSequenceClassification
+
+# from modeling import PromptModelForSequenceClassification
 from modeling import myDataCollator
 from utc_trainer import myUTCTrainer
 from paddlenlp.trainer import PdArgumentParser
@@ -39,6 +41,7 @@ from paddlenlp.transformers import AutoTokenizer, export_model, UTC
 from modeling import myUTC, myUTCTemplate
 import os
 from paddlenlp.utils.log import logger
+import numpy as np
 
 
 @dataclass
@@ -49,6 +52,7 @@ class DataArguments:
     )
     train_file: str = field(default="train.txt", metadata={"help": "Train dataset file name."})
     dev_file: str = field(default="dev.txt", metadata={"help": "Dev dataset file name."})
+    test_file: str = field(default="test.txt", metadata={"help": "Test dataset file name."})
     threshold: float = field(default=0.5, metadata={"help": "The threshold to produce predictions."})
     single_label: str = field(default=False, metadata={"help": "Predict exactly one label per sample."})
 
@@ -76,7 +80,7 @@ def main():
 
     # Load the pretrained language model.
     tokenizer = AutoTokenizer.from_pretrained(model_args.model_name_or_path)
-    model = UTC.from_pretrained(model_args.model_name_or_path)
+    model = myUTC.from_pretrained(model_args.model_name_or_path)
 
     # Define template for preprocess and verbalizer for postprocess.
     template = UTCTemplate(tokenizer, training_args.max_seq_length)
@@ -84,7 +88,7 @@ def main():
     template_tokens_len = get_template_tokens_len(tokenizer, os.path.join(data_args.dataset_path, "label.txt"))
 
     # Load and preprocess dataset.
-    '''
+
     train_ds = load_dataset(
         read_local_dataset_by_chunk,
         data_path=data_args.dataset_path,
@@ -101,7 +105,16 @@ def main():
         template_tokens_len=template_tokens_len,
         lazy=False,
     )
-    '''
+
+    test_ds = load_dataset(
+        read_local_dataset_by_chunk,
+        data_path=data_args.dataset_path,
+        data_file=data_args.test_file,
+        max_seq_len=training_args.max_seq_length,
+        template_tokens_len=template_tokens_len,
+        lazy=False,
+    )
+    """
 
     train_ds = load_dataset(
         read_local_dataset,
@@ -119,6 +132,16 @@ def main():
         template_tokens_len=template_tokens_len,
         lazy=False,
     )
+
+    test_ds = load_dataset(
+        read_local_dataset,
+        data_path=data_args.dataset_path,
+        data_file=data_args.test_file,
+        max_seq_len=training_args.max_seq_length,
+        template_tokens_len=template_tokens_len,
+        lazy=False,
+    )
+    """
 
     # Define the criterion.
     criterion = UTCLoss()
@@ -163,12 +186,20 @@ def main():
         preds = paddle.to_tensor(eval_preds.predictions)
         preds = paddle.nn.functional.sigmoid(preds)
 
-        logger.debug(preds)
+        # logger.debug(preds)
+
+        logger.debug(f"Prediction: {np.where(preds[labels != -100] > data_args.threshold)}")
+        logger.debug(f"Ground True: {np.where(labels[labels != -100])}")
+
+        logger.debug(
+            f"not the same: {np.where((preds[labels != -100] > data_args.threshold) != labels[labels != -100])}"
+        )
 
         # breakpoint()
         # preds = preds[labels != -100]
         # labels = labels[labels != -100]
         preds = preds > data_args.threshold
+
         logger.info(f"Number of All True 1 labels: {paddle.sum(labels==1).item()}")
         logger.info(f"Number of All Predict 1 label: {paddle.sum(preds).item()}")
         # breakpoint()
@@ -189,14 +220,14 @@ def main():
             "recall_score": recall,
         }
 
-    trainer = PromptTrainer(
+    trainer = myUTCTrainer(
         model=prompt_model,
         tokenizer=tokenizer,
         args=training_args,
         criterion=criterion,
         train_dataset=train_ds,
         eval_dataset=dev_ds,
-        # data_collator=myDataCollator(tokenizer, padding=True, return_tensors="pd"),
+        data_collator=myDataCollator(tokenizer, padding=True, return_tensors="pd"),
         callbacks=None,
         compute_metrics=compute_metrics_sklearn,
     )
@@ -210,6 +241,10 @@ def main():
         trainer.log_metrics("train", metrics)
         trainer.save_metrics("train", metrics)
         trainer.save_state()
+
+    if training_args.do_predict:
+        test_ret = trainer.predict(test_ds)
+        trainer.log_metrics("test", test_ret.metrics)
 
     # Export.
     if training_args.do_export:

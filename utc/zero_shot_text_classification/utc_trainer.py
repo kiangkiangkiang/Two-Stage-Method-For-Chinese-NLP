@@ -552,6 +552,8 @@ class myUTCTrainer(PromptTrainer):
 
                 if not isinstance(loss, int):
                     loss = loss.mean().detach()
+                    outputs = outputs.detach()
+                    labels = labels.detach()
                 else:
                     return (loss, outputs, labels)
 
@@ -681,6 +683,7 @@ class myUTCTrainer(PromptTrainer):
             labels = None
         do_model = False
         input_key = None
+        loss = 0
         for verdict_group in pd.unique(inputs["id"]):
             if self.accumulate_verdict.get(verdict_group) is None:
                 # self.logits_collector[k] = paddle.to_tensor(0.0)
@@ -693,25 +696,54 @@ class myUTCTrainer(PromptTrainer):
                 self.accumulate_verdict[verdict_group] += int(paddle.sum(inputs["id"] == verdict_group))
                 for key in inputs:
                     self.inputs_collector[verdict_group][key].append(inputs[key][inputs["id"] == verdict_group])
-                if (
-                    self.accumulate_verdict[verdict_group]
-                    == inputs["total_chunks"][inputs["id"] == verdict_group][0].item()
-                ):
-                    do_model = True
-                    input_key = verdict_group
-        if do_model:
-            logits = model(**self.inputs_collector[input_key])
-            del self.accumulate_verdict[input_key]
-            del self.inputs_collector[input_key]
-            labels_output = paddle.unsqueeze(labels[inputs["id"] == input_key][0], 0).cpu()
-            loss = self.criterion(logits, labels_output)
-            title = "Training" if model.training else "Evaluation"
-            logger.debug(
-                f"Loss of Verdict ID = {input_key}. Total Chunk in the Verdict = {inputs['total_chunks'][inputs['id'] == input_key][0].item()}"
-            )
-            logger.debug(f"{title} Loss {loss.item()}.")
+            if (
+                self.accumulate_verdict[verdict_group]
+                == inputs["total_chunks"][inputs["id"] == verdict_group][0].item()
+            ):
+                do_model = True
+                input_key = verdict_group
 
-        else:
+                for input_type in ["input_ids", "position_ids", "token_type_ids", "soft_token_ids"]:
+                    for i in range(len(self.inputs_collector[input_key][input_type])):
+                        x, y = self.inputs_collector[input_key][input_type][i].shape
+                        if y == self.args.max_seq_length:
+                            continue
+                        y = self.args.max_seq_length - y
+                        padding = paddle.to_tensor([0] * x * y).reshape((x, y))
+                        self.inputs_collector[input_key][input_type][i] = paddle.concat(
+                            [self.inputs_collector[input_key][input_type][i], padding], 1
+                        )
+
+                x, _, y, tmp = self.inputs_collector[input_key]["attention_mask"][0].shape
+                if y != self.args.max_seq_length:
+                    y = self.args.max_seq_length - y
+                    padding = paddle.to_tensor([-10000] * x * y * tmp, dtype="float64").reshape((x, 1, y, tmp))
+                    self.inputs_collector[input_key]["attention_mask"][0] = paddle.concat(
+                        [self.inputs_collector[input_key]["attention_mask"][0], padding], 2
+                    )
+                    padding = paddle.to_tensor([-10000] * x * self.args.max_seq_length * y, dtype="float64").reshape(
+                        (x, 1, self.args.max_seq_length, y)
+                    )
+                    self.inputs_collector[input_key]["attention_mask"][0] = paddle.concat(
+                        [self.inputs_collector[input_key]["attention_mask"][0], padding], 3
+                    )
+                logits = model(**self.inputs_collector[input_key])
+                # logger.debug(self.inputs_collector.keys())
+                del self.accumulate_verdict[input_key]
+                del self.inputs_collector[input_key]
+                labels_output = paddle.unsqueeze(labels[inputs["id"] == input_key][0], 0).cpu()
+                tmp = self.criterion(logits, labels_output)
+
+                title = "Training" if model.training else "Evaluation"
+                logger.debug(
+                    f"Loss of Verdict ID = {input_key}. Total Chunk in the Verdict = {inputs['total_chunks'][inputs['id'] == input_key][0].item()}"
+                )
+                logger.debug(f"{title} Loss {tmp.item()}.")
+
+                loss += tmp
+                del tmp
+
+        if not do_model:
             return (0, 0, 0) if return_outputs else 0
 
         outputs = (loss, logits, labels_output)
@@ -865,6 +897,8 @@ class myUTCTrainer(PromptTrainer):
             # Prediction step
             loss, logits, labels = self.prediction_step(model, inputs, prediction_loss_only, ignore_keys=ignore_keys)
             if isinstance(loss, int):
+                del logits
+                del labels
                 continue
 
             # Update containers on host

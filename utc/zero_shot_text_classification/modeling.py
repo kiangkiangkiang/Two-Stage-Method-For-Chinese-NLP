@@ -17,21 +17,22 @@ from typing import Any, Dict, Optional
 import numpy as np
 import paddle
 from paddle.static import InputSpec
-from paddlenlp.transformers import ErnieForMaskedLM, PretrainedTokenizer
+from paddlenlp.transformers import ErnieForMaskedLM, PretrainedTokenizer, register_base_model
 from paddlenlp.transformers import UTC, ErniePretrainedModel, ErnieConfig, ErnieModel
 from paddlenlp.transformers.model_outputs import (
     MaskedLMOutput,
     MultipleChoiceModelOutput,
     SequenceClassifierOutput,
+    BaseModelOutputWithPoolingAndCrossAttentions,
 )
 from paddlenlp.prompt.prompt_utils import signature, PromptDataCollatorWithPadding
 from paddlenlp.prompt.template import PrefixTemplate, Template
 from paddlenlp.prompt.verbalizer import Verbalizer
 from dataclasses import dataclass
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Tuple
 import paddle.nn.functional as F
 from paddlenlp.utils.log import logger
-from paddle import Tensor
+from paddle import Tensor, nn
 from paddlenlp.prompt import UTCTemplate
 
 # ''.join(self.tokenizer.convert_ids_to_tokens(inputs['input_ids'][0, :]))
@@ -214,6 +215,174 @@ class myDataCollator(PromptDataCollatorWithPadding):
     )
 
 
+@register_base_model
+class myErnieModel(ErnieModel):
+    def forward(
+        self,
+        input_ids: Optional[Tensor] = None,
+        token_type_ids: Optional[Tensor] = None,
+        position_ids: Optional[Tensor] = None,
+        attention_mask: Optional[Tensor] = None,
+        task_type_ids: Optional[Tensor] = None,
+        past_key_values: Optional[Tuple[Tuple[Tensor]]] = None,
+        inputs_embeds: Optional[Tensor] = None,
+        use_cache: Optional[bool] = None,
+        output_hidden_states: Optional[bool] = None,
+        output_attentions: Optional[bool] = None,
+        return_dict: Optional[bool] = None,
+    ):
+        r"""
+        Args:
+            input_ids (Tensor):
+                Indices of input sequence tokens in the vocabulary. They are
+                numerical representations of tokens that build the input sequence.
+                It's data type should be `int64` and has a shape of [batch_size, sequence_length].
+            token_type_ids (Tensor, optional):
+                Segment token indices to indicate different portions of the inputs.
+                Selected in the range ``[0, type_vocab_size - 1]``.
+                If `type_vocab_size` is 2, which means the inputs have two portions.
+                Indices can either be 0 or 1:
+
+                - 0 corresponds to a *sentence A* token,
+                - 1 corresponds to a *sentence B* token.
+
+                Its data type should be `int64` and it has a shape of [batch_size, sequence_length].
+                Defaults to `None`, which means we don't add segment embeddings.
+            position_ids (Tensor, optional):
+                Indices of positions of each input sequence tokens in the position embeddings. Selected in the range ``[0,
+                max_position_embeddings - 1]``.
+                Shape as `[batch_size, num_tokens]` and dtype as int64. Defaults to `None`.
+            attention_mask (Tensor, optional):
+                Mask used in multi-head attention to avoid performing attention on to some unwanted positions,
+                usually the paddings or the subsequent positions.
+                Its data type can be int, float and bool.
+                When the data type is bool, the `masked` tokens have `False` values and the others have `True` values.
+                When the data type is int, the `masked` tokens have `0` values and the others have `1` values.
+                When the data type is float, the `masked` tokens have `-INF` values and the others have `0` values.
+                It is a tensor with shape broadcasted to `[batch_size, num_attention_heads, sequence_length, sequence_length]`.
+                For example, its shape can be  [batch_size, sequence_length], [batch_size, sequence_length, sequence_length],
+                [batch_size, num_attention_heads, sequence_length, sequence_length].
+                We use whole-word-mask in ERNIE, so the whole word will have the same value. For example, "使用" as a word,
+                "使" and "用" will have the same value.
+                Defaults to `None`, which means nothing needed to be prevented attention to.
+            inputs_embeds (Tensor, optional):
+                If you want to control how to convert `inputs_ids` indices into associated vectors, you can
+                pass an embedded representation directly instead of passing `inputs_ids`.
+            past_key_values (tuple(tuple(Tensor)), optional):
+                The length of tuple equals to the number of layers, and each inner
+                tuple haves 4 tensors of shape `(batch_size, num_heads, sequence_length - 1, embed_size_per_head)`)
+                which contains precomputed key and value hidden states of the attention blocks.
+                If `past_key_values` are used, the user can optionally input only the last `input_ids` (those that
+                don't have their past key value states given to this model) of shape `(batch_size, 1)` instead of all
+                `input_ids` of shape `(batch_size, sequence_length)`.
+            use_cache (`bool`, optional):
+                If set to `True`, `past_key_values` key value states are returned.
+                Defaults to `None`.
+            output_hidden_states (bool, optional):
+                Whether to return the hidden states of all layers.
+                Defaults to `False`.
+            output_attentions (bool, optional):
+                Whether to return the attentions tensors of all attention layers.
+                Defaults to `False`.
+            return_dict (bool, optional):
+                Whether to return a :class:`~paddlenlp.transformers.model_outputs.ModelOutput` object. If `False`, the output
+                will be a tuple of tensors. Defaults to `False`.
+
+        Returns:
+            An instance of :class:`~paddlenlp.transformers.model_outputs.BaseModelOutputWithPoolingAndCrossAttentions` if
+            `return_dict=True`. Otherwise it returns a tuple of tensors corresponding
+            to ordered and not None (depending on the input arguments) fields of
+            :class:`~paddlenlp.transformers.model_outputs.BaseModelOutputWithPoolingAndCrossAttentions`.
+
+        Example:
+            .. code-block::
+
+                import paddle
+                from paddlenlp.transformers import ErnieModel, ErnieTokenizer
+
+                tokenizer = ErnieTokenizer.from_pretrained('ernie-1.0')
+                model = ErnieModel.from_pretrained('ernie-1.0')
+
+                inputs = tokenizer("Welcome to use PaddlePaddle and PaddleNLP!")
+                inputs = {k:paddle.to_tensor([v]) for (k, v) in inputs.items()}
+                sequence_output, pooled_output = model(**inputs)
+
+        """
+        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+        if input_ids is not None and inputs_embeds is not None:
+            raise ValueError("You cannot specify both input_ids and inputs_embeds at the same time.")
+
+        # init the default bool value
+        output_attentions = output_attentions if output_attentions is not None else False
+        output_hidden_states = output_hidden_states if output_hidden_states is not None else False
+        return_dict = return_dict if return_dict is not None else False
+        use_cache = use_cache if use_cache is not None else False
+        past_key_values_length = 0
+        if past_key_values is not None:
+            past_key_values_length = past_key_values[0][0].shape[2]
+
+        embedding_output = paddle.to_tensor([0.0])
+        counter = 0
+
+        for i in range(len(input_ids)):
+            counter += 1
+            if attention_mask[i] is None:
+                attention_mask[i] = paddle.unsqueeze(
+                    (input_ids == self.pad_token_id).astype(self.pooler.dense.weight.dtype) * -1e4, axis=[1, 2]
+                )
+                if past_key_values is not None:
+                    batch_size = past_key_values[0][0].shape[0]
+                    past_mask = paddle.zeros([batch_size, 1, 1, past_key_values_length], dtype=attention_mask.dtype)
+                    attention_mask = paddle.concat([past_mask, attention_mask], axis=-1)
+
+            # For 2D attention_mask from tokenizer
+            elif attention_mask[i].ndim == 2:
+                attention_mask[i] = paddle.unsqueeze(attention_mask[i], axis=[1, 2]).astype(paddle.get_default_dtype())
+                attention_mask[i] = (1.0 - attention_mask[i]) * -1e4
+
+            attention_mask[i].stop_gradient = True
+
+            embedding_output += paddle.mean(
+                self.embeddings(
+                    input_ids=input_ids[i],
+                    position_ids=position_ids[i],
+                    token_type_ids=token_type_ids[i],
+                    task_type_ids=task_type_ids,
+                    inputs_embeds=inputs_embeds,
+                    past_key_values_length=past_key_values_length,
+                ),
+                0,
+                keepdim=True,
+            )
+
+        embedding_output = embedding_output / counter
+        self.encoder._use_cache = use_cache  # To be consistent with HF
+        encoder_outputs = self.encoder(
+            embedding_output,
+            src_mask=attention_mask[0][0],
+            cache=past_key_values,
+            output_attentions=output_attentions,
+            output_hidden_states=output_hidden_states,
+            return_dict=return_dict,
+        )
+        if isinstance(encoder_outputs, type(embedding_output)):
+            sequence_output = encoder_outputs
+            pooled_output = self.pooler(sequence_output)
+            return (sequence_output, pooled_output)
+        else:
+            sequence_output = encoder_outputs[0]
+            pooled_output = self.pooler(sequence_output)
+            if not return_dict:
+                return (sequence_output, pooled_output) + encoder_outputs[1:]
+            return BaseModelOutputWithPoolingAndCrossAttentions(
+                last_hidden_state=sequence_output,
+                pooler_output=pooled_output,
+                past_key_values=encoder_outputs.past_key_values,
+                hidden_states=encoder_outputs.hidden_states,
+                attentions=encoder_outputs.attentions,
+            )
+
+
 class myUTC(ErniePretrainedModel):
     """
     Ernie Model with two linear layer on the top of the hidden-states output to compute
@@ -222,7 +391,14 @@ class myUTC(ErniePretrainedModel):
 
     def __init__(self, config: ErnieConfig):
         super(myUTC, self).__init__(config)
-        self.ernie = ErnieModel(config)
+        self.ernie = myErnieModel(config)
+        weight_attr = paddle.ParamAttr(
+            initializer=nn.initializer.TruncatedNormal(mean=0.0, std=config.initializer_range)
+        )
+        self.word_embeddings = nn.Embedding(
+            config.vocab_size, config.hidden_size, padding_idx=config.pad_token_id, weight_attr=weight_attr
+        )
+
         self.predict_size = 64
         self.linear_q = paddle.nn.Linear(config.hidden_size, self.predict_size)
         self.linear_k = paddle.nn.Linear(config.hidden_size, self.predict_size)
@@ -258,27 +434,22 @@ class myUTC(ErniePretrainedModel):
                 Labels for computing classification loss.
         """
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
-        breakpoint()
-        sequence_output = paddle.to_tensor([0.0])
         for i in range(len(input_ids)):
-            outputs = self.ernie(
-                input_ids[i],
-                token_type_ids=token_type_ids[i],
-                position_ids=position_ids[i],
-                attention_mask=attention_mask[i],
-                inputs_embeds=inputs_embeds,
-                output_attentions=output_attentions,
-                output_hidden_states=output_hidden_states,
-                return_dict=return_dict,
-            )
-            breakpoint()
-            sequence_output += paddle.sum(outputs[0], 0, keepdim=True)
-            breakpoint()
-            # if i == len(input_ids) - 1:
-        breakpoint()
+            input_ids[i]
 
-        # else:
-        # sequence_output = outputs[0]
+        outputs = self.ernie(
+            input_ids,
+            token_type_ids=token_type_ids,
+            position_ids=position_ids,
+            attention_mask=attention_mask,
+            inputs_embeds=inputs_embeds,
+            output_attentions=output_attentions,
+            output_hidden_states=output_hidden_states,
+            return_dict=return_dict,
+        )
+        sequence_output = outputs[0]
+        omask_positions = omask_positions[0][0]
+        cls_positions = cls_positions[0][0]
 
         batch_size, seq_len, hidden_size = sequence_output.shape
         flat_sequence_output = paddle.reshape(sequence_output, [-1, hidden_size])
@@ -359,48 +530,28 @@ class PromptModelForSequenceClassification(paddle.nn.Layer):
         return_dict: Optional[bool] = None,
         **kwargs: Dict[str, Any],
     ):
+        breakpoint()
         return_dict = return_dict if return_dict is not None else False
         return_hidden_states = kwargs.get("return_hidden_states", False)
-        this_kwargs = {}
-        model_outputs = paddle.to_tensor([0.0])
-        for i in range(len(input_ids)):
-            for k in kwargs:
-                this_kwargs[k] = kwargs[k][i]
-            input_dict = {
-                "input_ids": input_ids[i],
-                "token_type_ids": token_type_ids[i],
-                "position_ids": position_ids[i],
-                "masked_positions": masked_positions,
-                "soft_token_ids": soft_token_ids[i],
-                "attention_mask": attention_mask[i],
-                "encoder_ids": encoder_ids,
-                **this_kwargs,
-            }
-            input_dict = self.template.process_batch(input_dict)
-            input_dict = {**input_dict, **this_kwargs}
-            model_inputs = {k: input_dict[k] for k in input_dict if k in self.forward_keys}
-            if "masked_positions" in model_inputs:
-                model_inputs.pop("masked_positions")
-
-            # model_outputs = self.plm(**model_inputs, return_dict=True)
-
-            if i == len(input_ids) - 1:
-                # model_outputs += paddle.mean(self.plm(**model_inputs, return_dict=True).logits, 0, keepdim=True)
-                model_outputs += paddle.mean(self.plm(**model_inputs, return_dict=True).logits, 0, keepdim=True)
-
-            else:
-                model_outputs += paddle.mean(
-                    self.plm(**model_inputs, return_dict=True, output_hidden_states=True).logits.detach(),
-                    0,
-                    keepdim=True,
-                )
-
-        # logger.debug(f"logits: {model_outputs / len(input_ids)}")
-        # logger.debug(f"logits: {self.sigmoid(model_outputs / len(input_ids))}")
-        model_outputs = MultipleChoiceModelOutput(
-            loss=None, logits=model_outputs / len(input_ids), hidden_states=None, attentions=None
-        )
-
+        breakpoint()
+        input_dict = {
+            "input_ids": input_ids,
+            "token_type_ids": token_type_ids,
+            "position_ids": position_ids,
+            "masked_positions": masked_positions,
+            "soft_token_ids": soft_token_ids,
+            "attention_mask": attention_mask,
+            "encoder_ids": encoder_ids,
+            **kwargs,
+        }
+        breakpoint()
+        input_dict = self.template.process_batch(input_dict)
+        breakpoint()
+        input_dict = {**input_dict, **kwargs}
+        model_inputs = {k: input_dict[k] for k in input_dict if k in self.forward_keys}
+        if "masked_positions" in model_inputs:
+            model_inputs.pop("masked_positions")
+        model_outputs = self.plm(**model_inputs, return_dict=True)
         if isinstance(model_outputs, MaskedLMOutput):
             if self.verbalizer is not None:
                 logits = self.verbalizer.process_outputs(model_outputs.logits, input_dict["masked_positions"])
