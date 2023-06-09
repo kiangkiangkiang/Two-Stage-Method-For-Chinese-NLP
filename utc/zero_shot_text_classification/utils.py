@@ -20,6 +20,8 @@ import numpy as np
 import paddle
 
 from paddlenlp.utils.log import logger
+from paddlenlp import Taskflow
+from typing import List
 
 
 def read_local_dataset_by_chunk(data_path, data_file=None, is_test=False, max_seq_len=512, template_tokens_len=None):
@@ -91,6 +93,55 @@ def read_local_dataset(data_path, data_file=None, is_test=False):
     Load datasets with one example per line, formated as:
         {"text_a": X, "text_b": X, "question": X, "choices": [A, B], "labels": [0, 1]}
     """
+    if data_file is not None:
+        file_paths = [os.path.join(data_path, fname) for fname in os.listdir(data_path) if fname.endswith(data_file)]
+    else:
+        file_paths = [data_path]
+    skip_count = 0
+    for file_path in file_paths:
+        with open(file_path, "r", encoding="utf-8") as fp:
+            for example in fp:
+                example = json.loads(example.strip())
+                if len(example["choices"]) < 2 or not isinstance(example["text_a"], str) or len(example["text_a"]) < 3:
+                    skip_count += 1
+                    continue
+                if "text_b" not in example:
+                    example["text_b"] = ""
+                if not is_test or "labels" in example:
+                    if not isinstance(example["labels"], list):
+                        example["labels"] = [example["labels"]]
+                    one_hots = np.zeros(len(example["choices"]), dtype="float32")
+                    for x in example["labels"]:
+                        one_hots[x] = 1
+                    example["labels"] = one_hots.tolist()
+
+                if is_test:
+                    yield example
+                    continue
+                std_keys = ["text_a", "text_b", "question", "choices", "labels"]
+                std_example = {k: example[k] for k in std_keys if k in example}
+                yield std_example
+    logger.warning(f"Skip {skip_count} examples.")
+
+
+def read_local_dataset_with_uie_filter(
+    data_path,
+    data_file=None,
+    is_test=False,
+    max_seq_len: int = 512,
+    special_word_len: int = 200,
+    uie_model_name_or_path: str = "./uie_model/model_best/",
+    schema: List[str] = ["原告年齡", "肇事過失責任比例", "受有傷害"],
+):
+    """
+    Load datasets with one example per line, formated as:
+        {"text_a": X, "text_b": X, "question": X, "choices": [A, B], "labels": [0, 1]}
+    """
+
+    # TODO Now only for gpu
+    uie = Taskflow("information_extraction", task_path=uie_model_name_or_path, schema=schema, precision="fp16")
+    max_content_len = max_seq_len - special_word_len
+
     if data_file is not None:
         file_paths = [os.path.join(data_path, fname) for fname in os.listdir(data_path) if fname.endswith(data_file)]
     else:

@@ -88,7 +88,6 @@ def main():
     template_tokens_len = get_template_tokens_len(tokenizer, os.path.join(data_args.dataset_path, "label.txt"))
 
     # Load and preprocess dataset.
-
     train_ds = load_dataset(
         read_local_dataset_by_chunk,
         data_path=data_args.dataset_path,
@@ -114,6 +113,35 @@ def main():
         template_tokens_len=template_tokens_len,
         lazy=False,
     )
+
+    """
+    train_ds = load_dataset(
+        read_local_dataset_by_chunk,
+        data_path=data_args.dataset_path,
+        data_file=data_args.train_file,
+        max_seq_len=training_args.max_seq_length,
+        template_tokens_len=template_tokens_len,
+        lazy=False,
+    )
+    dev_ds = load_dataset(
+        read_local_dataset_by_chunk,
+        data_path=data_args.dataset_path,
+        data_file=data_args.dev_file,
+        max_seq_len=training_args.max_seq_length,
+        template_tokens_len=template_tokens_len,
+        lazy=False,
+    )
+
+    test_ds = load_dataset(
+        read_local_dataset_by_chunk,
+        data_path=data_args.dataset_path,
+        data_file=data_args.test_file,
+        max_seq_len=training_args.max_seq_length,
+        template_tokens_len=template_tokens_len,
+        lazy=False,
+    )
+    """
+
     """
 
     train_ds = load_dataset(
