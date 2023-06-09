@@ -186,14 +186,14 @@ def main():
         preds = paddle.to_tensor(eval_preds.predictions)
         preds = paddle.nn.functional.sigmoid(preds)
 
-        # logger.debug(preds)
+        logger.debug(preds)
 
-        logger.debug(f"Prediction: {np.where(preds[labels != -100] > data_args.threshold)}")
-        logger.debug(f"Ground True: {np.where(labels[labels != -100])}")
+        # logger.debug(f"Prediction: {np.where(preds[labels != -100] > data_args.threshold)}")
+        # logger.debug(f"Ground True: {np.where(labels[labels != -100])}")
 
-        logger.debug(
-            f"not the same: {np.where((preds[labels != -100] > data_args.threshold) != labels[labels != -100])}"
-        )
+        # logger.debug(
+        #    f"not the same: {np.where((preds[labels != -100] > data_args.threshold) != labels[labels != -100])}"
+        # )
 
         # breakpoint()
         # preds = preds[labels != -100]
