@@ -5,11 +5,10 @@ import numpy as np
 import argparse
 
 
-def filter_text(raw_text: str, text_information: dict, max_len_of_new_text: int, threshold: float = 0.4):
-    flatten_result = []
-    raw_text_len = len(raw_text)
+def flatten_uie_output(uie_output: dict, threshold: float = 0.0):
+    flatten_uie_result = []
     test_unique = {"start": [], "end": []}
-    for informations in text_information:
+    for informations in uie_output:
         for key in informations:
             for each_information in informations[key]:
                 if each_information["probability"] > threshold:
@@ -19,35 +18,92 @@ def filter_text(raw_text: str, text_information: dict, max_len_of_new_text: int,
                     ):
                         test_unique["start"].append(each_information["start"])
                         test_unique["end"].append(each_information["end"])
-                        flatten_result.append(each_information)
+                        flatten_uie_result.append(each_information)
+    return flatten_uie_result
 
-    if len(flatten_result) == 0:
-        return []
-    each_result_len = int(np.round((max_len_of_new_text / len(flatten_result))))
+
+def get_sliding_window_of_each_result(
+    flatten_uie_result: dict,
+    sliding_window_length: int,
+    max_length_of_content: int = 1000,
+    return_sort_sliding_window: bool = True,
+):
     sliding_windows = []
-
-    for each_result in flatten_result:
+    for each_result in flatten_uie_result:
         text_len = each_result["end"] - each_result["start"]
-        sliding_windows_len = int(np.round((each_result_len - text_len) / 2))
+        sliding_windows_len = int(np.round((sliding_window_length - text_len) / 2))
         start = each_result["start"] - sliding_windows_len if each_result["start"] - sliding_windows_len > 0 else 0
         end = (
             each_result["end"] + sliding_windows_len
-            if each_result["end"] + sliding_windows_len < raw_text_len
-            else raw_text_len
+            if each_result["end"] + sliding_windows_len < max_length_of_content
+            else max_length_of_content
         )
+
         sliding_windows.append({"start": start, "end": end})
 
-    sliding_windows.sort(key=lambda x: x["start"])
+    if return_sort_sliding_window:
+        sliding_windows.sort(key=lambda x: x["start"])
+
+    return sliding_windows
+
+
+def filter_text(
+    raw_text: str,
+    uie_output: dict,
+    max_len_of_new_text: int,
+    threshold: float = 0.4,
+    dynamic_adjust_length: bool = True,
+):
+    flatten_uie_result = flatten_uie_output(uie_output=uie_output, threshold=threshold)
+
+    if len(flatten_uie_result) == 0:
+        return []
+
+    raw_text_len = len(raw_text) - 1
+
+    each_result_len = int(np.round((max_len_of_new_text / len(flatten_uie_result))))
+
+    sliding_windows = get_sliding_window_of_each_result(
+        flatten_uie_result=flatten_uie_result,
+        sliding_window_length=each_result_len,
+        max_length_of_content=raw_text_len,
+        return_sort_sliding_window=True,
+    )
 
     last_end = -1
     new_text = ""
-    for window in sliding_windows:
+    waste_length = 0
+    for u, window in enumerate(sliding_windows):
+        if dynamic_adjust_length and waste_length > 0:
+            new_start = int(np.round(window["start"] - waste_length / 2))
+            new_end = int(np.round(window["end"] + waste_length / 2))
+            window["start"] = new_start if new_start > 0 else 0
+            window["end"] = new_end if new_end < raw_text_len else raw_text_len
+
         if window["start"] < last_end:
             # overlap
+            # |<-------->|
+            #         |<-------->|
+            #         |##| = waste length
+            if dynamic_adjust_length:
+                remain_windows = len(sliding_windows) - (u + 1)
+                waste_length += (
+                    int(np.round((last_end - window["start"]) / remain_windows))
+                    if remain_windows > 0
+                    else (last_end - window["start"])
+                )
+
+                if u == len(sliding_windows) - 1:
+                    window["end"] = (
+                        window["end"] + int(np.round(waste_length / 2))
+                        if window["end"] + waste_length < raw_text_len
+                        else raw_text_len
+                    )
+
             new_text += raw_text[last_end : window["end"]]
-            last_end = window["end"]
         else:
             new_text += raw_text[window["start"] : window["end"]]
+        last_end = window["end"]
     return new_text
 
 
@@ -73,11 +129,14 @@ if __name__ == "__main__":
         "--threshold", type=float, default=0.4, help="Filter threshold (probability < threshold will be remove)"
     )
     parser.add_argument("--model_name_or_path", type=str, default="uie-base", help="Given a checkpoint of uie model.")
+    parser.add_argument("--dynamic_adjust_length", type=str, default="True", help="dssss")
     args = parser.parse_args()
+    args.dynamic_adjust_length = eval(args.dynamic_adjust_length)
     model = Taskflow("information_extraction", task_path=args.model_name_or_path, schema=schema, precision="fp16")
 
     # setting
     max_content_len = args.max_seq_len - args.special_word_len
+    print(args.dynamic_adjust_length)
     if args.index_of_toy_data == -1:
         for i in range(7):
             text = load_toy_data(i)
@@ -88,7 +147,11 @@ if __name__ == "__main__":
 
             # filter text
             new_text = filter_text(
-                raw_text=text, text_information=ans, max_len_of_new_text=max_content_len, threshold=args.threshold
+                raw_text=text,
+                uie_output=ans,
+                max_len_of_new_text=max_content_len,
+                threshold=args.threshold,
+                dynamic_adjust_length=args.dynamic_adjust_length,
             )
             print(len(new_text))
             print(new_text)
@@ -102,7 +165,11 @@ if __name__ == "__main__":
 
         # filter text
         new_text = filter_text(
-            raw_text=text, text_information=ans, max_len_of_new_text=max_content_len, threshold=args.threshold
+            raw_text=text,
+            uie_output=ans,
+            max_len_of_new_text=max_content_len,
+            threshold=args.threshold,
+            dynamic_adjust_length=args.dynamic_adjust_length,
         )
         print(len(new_text))
         print(new_text)
