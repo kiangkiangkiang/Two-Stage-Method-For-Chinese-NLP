@@ -2,3 +2,4 @@ utc/zero_shot_text_classification/checkpoint
 utc/zero_shot_text_classification/__pycache__
 uie/checkpoint/
 uie/__pycache__
+utc/uie_model/model_best
