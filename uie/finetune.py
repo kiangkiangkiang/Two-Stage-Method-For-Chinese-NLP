@@ -31,6 +31,7 @@ from paddlenlp.trainer import (
 )
 from paddlenlp.transformers import UIE, UIEM, AutoTokenizer, export_model
 from paddlenlp.utils.log import logger
+from paddle import optimizer
 
 
 @dataclass
@@ -45,9 +46,7 @@ class DataArguments:
         default=None, metadata={"help": "The name of the dataset to use (via the datasets library)."}
     )
 
-    dev_path: str = field(
-        default=None, metadata={"help": "The name of the dataset to use (via the datasets library)."}
-    )
+    dev_path: str = field(default=None, metadata={"help": "The name of the dataset to use (via the datasets library)."})
 
     max_seq_length: Optional[int] = field(
         default=512,
@@ -179,9 +178,16 @@ def main():
         compute_metrics=compute_metrics,
     )
 
+    """
+    for i in model.ernie.parameters():
+        i.stop_gradient = True
+    """
+
+    # from paddle import optimizer
     trainer.optimizer = paddle.optimizer.AdamW(
-        learning_rate=training_args.learning_rate, parameters=model.parameters()
+        learning_rate=training_args.learning_rate, parameters=model.parameters(), weight_decay=0.3
     )
+    # trainer.optimizer = paddle.optimizer.AdamW(learning_rate=training_args.learning_rate, parameters=model.parameters())
     checkpoint = None
     if training_args.resume_from_checkpoint is not None:
         checkpoint = training_args.resume_from_checkpoint

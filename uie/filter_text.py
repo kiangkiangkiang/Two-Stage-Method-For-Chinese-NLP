@@ -1,3 +1,4 @@
+# coding=utf8
 from paddlenlp import Taskflow
 from pprint import pprint
 import numpy as np
@@ -20,6 +21,8 @@ def filter_text(raw_text: str, text_information: dict, max_len_of_new_text: int,
                         test_unique["end"].append(each_information["end"])
                         flatten_result.append(each_information)
 
+    if len(flatten_result) == 0:
+        return []
     each_result_len = int(np.round((max_len_of_new_text / len(flatten_result))))
     sliding_windows = []
 
@@ -75,15 +78,31 @@ if __name__ == "__main__":
 
     # setting
     max_content_len = args.max_seq_len - args.special_word_len
-    text = load_toy_data(args.index_of_toy_data)
+    if args.index_of_toy_data == -1:
+        for i in range(7):
+            text = load_toy_data(i)
 
-    # model
-    ans = model(text)
-    pprint(ans)
+            # model
+            ans = model(text)
+            pprint(ans)
 
-    # filter text
-    new_text = filter_text(
-        raw_text=text, text_information=ans, max_len_of_new_text=max_content_len, threshold=args.threshold
-    )
-    print(len(new_text))
-    print(new_text)
+            # filter text
+            new_text = filter_text(
+                raw_text=text, text_information=ans, max_len_of_new_text=max_content_len, threshold=args.threshold
+            )
+            print(len(new_text))
+            print(new_text)
+
+    else:
+        text = load_toy_data(args.index_of_toy_data)
+
+        # model
+        ans = model(text)
+        pprint(ans)
+
+        # filter text
+        new_text = filter_text(
+            raw_text=text, text_information=ans, max_len_of_new_text=max_content_len, threshold=args.threshold
+        )
+        print(len(new_text))
+        print(new_text)
