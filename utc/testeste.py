@@ -16,6 +16,7 @@ with open(os.path.join(dir, "label_studio_output.json"), "r", encoding="utf8") a
     for file in f:
         for example in json.loads(file.strip()):
             # example['annotations'][0]['result']
+            label_list = []
             if example["annotations"][0]["result"]:
                 for raw_label in example["annotations"][0]["result"][0]["value"]["choices"]:
                     if raw_label not in options:
