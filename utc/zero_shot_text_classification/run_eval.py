@@ -15,6 +15,8 @@
 import json
 import os
 from dataclasses import dataclass, field
+from paddlenlp.utils.log import logger
+from metric import MetricReport
 
 import paddle
 from paddle.metric import Accuracy
@@ -98,6 +100,80 @@ def main():
 
         return {"micro_f1": micro_f1, "macro_f1": macro_f1}
 
+    def compute_metrics_sklearn(eval_preds):
+        separate_eval = False
+        metric = MetricReport()
+        metric.reset()
+
+        labels = paddle.to_tensor(eval_preds.label_ids, dtype="int64")
+        preds = paddle.to_tensor(eval_preds.predictions)
+        preds = paddle.nn.functional.sigmoid(preds)
+
+        logger.debug(preds)
+
+        # logger.debug(f"Prediction: {np.where(preds[labels != -100] > data_args.threshold)}")
+        # logger.debug(f"Ground True: {np.where(labels[labels != -100])}")
+
+        # logger.debug(
+        #    f"not the same: {np.where((preds[labels != -100] > data_args.threshold) != labels[labels != -100])}"
+        # )
+
+        # breakpoint()
+        # preds = preds[labels != -100]
+        # labels = labels[labels != -100]
+        preds = preds > data_args.threshold
+
+        logger.info(f"Number of All True 1 labels: {paddle.sum(labels==1).item()}")
+        logger.info(f"Number of All Predict 1 label: {paddle.sum(preds).item()}")
+        breakpoint()
+        if labels.shape[1] != 55:
+            logger.warning(
+                "Cannot apply separate evaluate. Due to the number of labels is not equal to 55. (Add or Remove labels ever?)"
+            )
+            separate_eval = False
+
+        if separate_eval:
+            # 部位: 0~8
+            preds_injure_part = preds[:, :9]
+            labels_injure_part = labels[:, :9]
+
+            # 傷勢: 9 ~ 35
+            preds_injure_level = preds[:, 9:36]
+            labels_injure_level = labels[:, 9:36]
+
+            # 肇事: 36 ~ 46
+            preds_responsibility = preds[:, 36:47]
+            labels_responsibility = labels[:, 36:47]
+
+            # 年齡: 47 ~ 54
+            preds_age = preds[:, 47:]
+            labels_age = labels[:, 47:]
+
+            preds = (preds_injure_part, preds_injure_level, preds_responsibility, preds_age)
+            labels = (labels_injure_part, labels_injure_level, labels_responsibility, labels_age)
+
+            for p, l in zip(preds, labels):
+                metric.update(p, l)
+                micro_f1_score, macro_f1_score, accuracy, precision, recall = metric.accumulate()
+                logger.debug(f"micro_f1_score: {micro_f1_score}")
+                logger.debug(f"macro_f1_score: {macro_f1_score}")
+                logger.debug(f"accuracy: {accuracy}")
+                logger.debug(f"precision: {precision}")
+                logger.debug(f"recall: {recall}")
+                metric.reset()
+
+        else:
+            metric.update(preds, labels)
+            micro_f1_score, macro_f1_score, accuracy, precision, recall = metric.accumulate()
+            metric.reset()
+            return {
+                "eval_micro_f1": micro_f1_score,
+                "eval_macro_f1": macro_f1_score,
+                "accuracy_score": accuracy,
+                "precision_score": precision,
+                "recall_score": recall,
+            }
+
     trainer = PromptTrainer(
         model=prompt_model,
         tokenizer=tokenizer,
@@ -106,7 +182,7 @@ def main():
         train_dataset=None,
         eval_dataset=None,
         callbacks=None,
-        compute_metrics=compute_metrics_single_label if data_args.single_label else compute_metrics,
+        compute_metrics=compute_metrics_single_label if data_args.single_label else compute_metrics_sklearn,
     )
 
     if data_args.test_path is not None:

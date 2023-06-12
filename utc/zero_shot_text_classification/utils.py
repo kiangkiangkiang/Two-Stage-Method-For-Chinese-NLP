@@ -22,6 +22,8 @@ import paddle
 from paddlenlp.utils.log import logger
 from paddlenlp import Taskflow
 from typing import List
+from tqdm import tqdm
+from uie_model.filter_text import *
 
 
 def read_local_dataset_by_chunk(data_path, data_file=None, is_test=False, max_seq_len=512, template_tokens_len=None):
@@ -132,6 +134,8 @@ def read_local_dataset_with_uie_filter(
     special_word_len: int = 200,
     uie_model_name_or_path: str = "./uie_model/model_best/",
     schema: List[str] = ["原告年齡", "肇事過失責任比例", "受有傷害"],
+    dynamic_adjust_length: bool = True,
+    threshold: float = 0,
 ):
     """
     Load datasets with one example per line, formated as:
@@ -141,16 +145,38 @@ def read_local_dataset_with_uie_filter(
     # TODO Now only for gpu
     uie = Taskflow("information_extraction", task_path=uie_model_name_or_path, schema=schema, precision="fp16")
     max_content_len = max_seq_len - special_word_len
+    uie_miss_cases = 0
+    miss_recoder = []
 
     if data_file is not None:
         file_paths = [os.path.join(data_path, fname) for fname in os.listdir(data_path) if fname.endswith(data_file)]
     else:
         file_paths = [data_path]
     skip_count = 0
+    total_example = 0
     for file_path in file_paths:
         with open(file_path, "r", encoding="utf-8") as fp:
-            for example in fp:
+            for example in tqdm(fp):
                 example = json.loads(example.strip())
+
+                # uie filter
+                uie_output = uie(example["text_a"])
+                new_text = filter_text(
+                    raw_text=example["text_a"],
+                    uie_output=uie_output,
+                    max_len_of_new_text=max_content_len,
+                    threshold=threshold,
+                    dynamic_adjust_length=dynamic_adjust_length,
+                )
+                if len(new_text) == 0 and len(example["labels"]) != 0:
+                    uie_miss_cases += 1
+                    example["Missing Records"] = [example["choices"][i] for i in example["labels"]]
+                    miss_recoder.append(example)
+
+                    logger.debug(f"UIE miss {uie_miss_cases}")
+
+                example["text_a"] = new_text
+
                 if len(example["choices"]) < 2 or not isinstance(example["text_a"], str) or len(example["text_a"]) < 3:
                     skip_count += 1
                     continue
@@ -164,6 +190,8 @@ def read_local_dataset_with_uie_filter(
                         one_hots[x] = 1
                     example["labels"] = one_hots.tolist()
 
+                total_example += 1
+
                 if is_test:
                     yield example
                     continue
@@ -171,6 +199,10 @@ def read_local_dataset_with_uie_filter(
                 std_example = {k: example[k] for k in std_keys if k in example}
                 yield std_example
     logger.warning(f"Skip {skip_count} examples.")
+    if uie_miss_cases > 0:
+        logger.debug(f"Miss Cases: {miss_recoder}.")
+        logger.debug(f"Number of UIE missing cases: {uie_miss_cases}. Missing rate: {uie_miss_cases/total_example}")
+        breakpoint()
 
 
 def get_template_tokens_len(tokenizer, label_file):
@@ -209,3 +241,7 @@ class UTCLoss(object):
         pos_loss = paddle.logsumexp(logit_pos, axis=-1)
         loss = (neg_loss + pos_loss).mean()
         return loss
+
+
+def uie_preprocessing():
+    pass

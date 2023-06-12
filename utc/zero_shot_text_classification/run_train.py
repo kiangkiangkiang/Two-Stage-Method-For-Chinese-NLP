@@ -15,14 +15,20 @@
 from dataclasses import dataclass, field
 from metric import MetricReport
 
-# from paddlenlp.prompt import PromptTrainer
+from paddlenlp.prompt import PromptTrainer
 
 import paddle
 import paddle.nn.functional as F
 from paddle.metric import Accuracy
 from paddle.static import InputSpec
 from sklearn.metrics import f1_score
-from utils import UTCLoss, read_local_dataset, get_template_tokens_len, read_local_dataset_by_chunk
+from utils import (
+    UTCLoss,
+    read_local_dataset,
+    get_template_tokens_len,
+    read_local_dataset_by_chunk,
+    uie_preprocessing,
+)
 
 from paddlenlp.datasets import load_dataset
 from paddlenlp.prompt import (
@@ -80,14 +86,43 @@ def main():
 
     # Load the pretrained language model.
     tokenizer = AutoTokenizer.from_pretrained(model_args.model_name_or_path)
-    model = myUTC.from_pretrained(model_args.model_name_or_path)
+    model = UTC.from_pretrained(model_args.model_name_or_path)
 
     # Define template for preprocess and verbalizer for postprocess.
     template = UTCTemplate(tokenizer, training_args.max_seq_length)
 
-    template_tokens_len = get_template_tokens_len(tokenizer, os.path.join(data_args.dataset_path, "label.txt"))
+    # template_tokens_len = get_template_tokens_len(tokenizer, os.path.join(data_args.dataset_path, "label.txt"))
 
     # Load and preprocess dataset.
+    """
+    train_ds = load_dataset(
+        read_local_dataset_with_uie_filter,
+        data_path=data_args.dataset_path,
+        data_file=data_args.train_file,
+        max_seq_len=training_args.max_seq_length,
+        template_tokens_len=template_tokens_len,
+        lazy=False,
+    )
+    dev_ds = load_dataset(
+        read_local_dataset_with_uie_filter,
+        data_path=data_args.dataset_path,
+        data_file=data_args.dev_file,
+        max_seq_len=training_args.max_seq_length,
+        template_tokens_len=template_tokens_len,
+        lazy=False,
+    )
+
+    test_ds = load_dataset(
+        read_local_dataset_with_uie_filter,
+        data_path=data_args.dataset_path,
+        data_file=data_args.test_file,
+        max_seq_len=training_args.max_seq_length,
+        special_word_len=template_tokens_len,
+        lazy=False,
+    )
+    """
+
+    """
     train_ds = load_dataset(
         read_local_dataset_by_chunk,
         data_path=data_args.dataset_path,
@@ -113,35 +148,6 @@ def main():
         template_tokens_len=template_tokens_len,
         lazy=False,
     )
-
-    """
-    train_ds = load_dataset(
-        read_local_dataset_by_chunk,
-        data_path=data_args.dataset_path,
-        data_file=data_args.train_file,
-        max_seq_len=training_args.max_seq_length,
-        template_tokens_len=template_tokens_len,
-        lazy=False,
-    )
-    dev_ds = load_dataset(
-        read_local_dataset_by_chunk,
-        data_path=data_args.dataset_path,
-        data_file=data_args.dev_file,
-        max_seq_len=training_args.max_seq_length,
-        template_tokens_len=template_tokens_len,
-        lazy=False,
-    )
-
-    test_ds = load_dataset(
-        read_local_dataset_by_chunk,
-        data_path=data_args.dataset_path,
-        data_file=data_args.test_file,
-        max_seq_len=training_args.max_seq_length,
-        template_tokens_len=template_tokens_len,
-        lazy=False,
-    )
-    """
-
     """
 
     train_ds = load_dataset(
@@ -149,15 +155,12 @@ def main():
         data_path=data_args.dataset_path,
         data_file=data_args.train_file,
         max_seq_len=training_args.max_seq_length,
-        template_tokens_len=template_tokens_len,
         lazy=False,
     )
     dev_ds = load_dataset(
         read_local_dataset,
         data_path=data_args.dataset_path,
         data_file=data_args.dev_file,
-        max_seq_len=training_args.max_seq_length,
-        template_tokens_len=template_tokens_len,
         lazy=False,
     )
 
@@ -165,11 +168,8 @@ def main():
         read_local_dataset,
         data_path=data_args.dataset_path,
         data_file=data_args.test_file,
-        max_seq_len=training_args.max_seq_length,
-        template_tokens_len=template_tokens_len,
         lazy=False,
     )
-    """
 
     # Define the criterion.
     criterion = UTCLoss()
@@ -207,6 +207,7 @@ def main():
         }
 
     def compute_metrics_sklearn(eval_preds):
+        separate_eval = True
         metric = MetricReport()
         metric.reset()
 
@@ -230,16 +231,45 @@ def main():
 
         logger.info(f"Number of All True 1 labels: {paddle.sum(labels==1).item()}")
         logger.info(f"Number of All Predict 1 label: {paddle.sum(preds).item()}")
-        # breakpoint()
+        if labels.shape[1] != 55:
+            logger.warning(
+                "Cannot apply separate evaluate. Due to the number of labels is not equal to 55. (Add or Remove labels ever?)"
+            )
+            separate_eval = False
+
+        if separate_eval:
+            label_name = ["體傷部位", "體傷程度", "肇事責任", "年齡"]
+            # 部位: 0~8
+            preds_injure_part = preds[:, :9]
+            labels_injure_part = labels[:, :9]
+
+            # 傷勢: 9 ~ 35
+            preds_injure_level = preds[:, 9:36]
+            labels_injure_level = labels[:, 9:36]
+
+            # 肇事: 36 ~ 46
+            preds_responsibility = preds[:, 36:47]
+            labels_responsibility = labels[:, 36:47]
+
+            # 年齡: 47 ~ 54
+            preds_age = preds[:, 47:]
+            labels_age = labels[:, 47:]
+
+            preds_list = (preds_injure_part, preds_injure_level, preds_responsibility, preds_age)
+            labels_list = (labels_injure_part, labels_injure_level, labels_responsibility, labels_age)
+
+            for p, l, name in zip(preds_list, labels_list, label_name):
+                metric.update(p, l)
+                micro_f1_score, macro_f1_score, accuracy, precision, recall = metric.accumulate()
+                logger.debug(f"====={name}=====")
+                logger.debug(
+                    f"micro_f1_score: {micro_f1_score}. macro_f1_score: {macro_f1_score}. accuracy: {accuracy}. precision: {precision}. recall: {recall}."
+                )
+                metric.reset()
 
         metric.update(preds, labels)
         micro_f1_score, macro_f1_score, accuracy, precision, recall = metric.accumulate()
         metric.reset()
-
-        # micro_f1 = f1_score(y_pred=preds, y_true=labels, average="micro")
-        # macro_f1 = f1_score(y_pred=preds, y_true=labels, average="macro")
-
-        # return {"micro_f1": micro_f1, "macro_f1": macro_f1}
         return {
             "eval_micro_f1": micro_f1_score,
             "eval_macro_f1": macro_f1_score,
@@ -248,18 +278,18 @@ def main():
             "recall_score": recall,
         }
 
-    trainer = myUTCTrainer(
+    trainer = PromptTrainer(
         model=prompt_model,
         tokenizer=tokenizer,
         args=training_args,
         criterion=criterion,
         train_dataset=train_ds,
         eval_dataset=dev_ds,
-        data_collator=myDataCollator(tokenizer, padding=True, return_tensors="pd"),
         callbacks=None,
         compute_metrics=compute_metrics_sklearn,
     )
     # compute_metrics=compute_metrics_single_label if data_args.single_label else compute_metrics,
+    # data_collator=myDataCollator(tokenizer, padding=True, return_tensors="pd"),
 
     # Training.
     if training_args.do_train:
@@ -271,8 +301,8 @@ def main():
         trainer.save_state()
 
     if training_args.do_predict:
-        test_ret = trainer.predict(test_ds)
-        trainer.log_metrics("test", test_ret.metrics)
+        test_metrics = trainer.evaluate(eval_dataset=test_ds)
+        trainer.log_metrics("test", test_metrics)
 
     # Export.
     if training_args.do_export:
