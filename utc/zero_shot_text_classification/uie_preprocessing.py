@@ -84,6 +84,7 @@ class rule_based_processer:
 
         for label_type in SCHEMA:
             if uie_output[0].get(label_type) is None and has_label_type[label_type]:
+                breakpoint()
                 uie_output[0][label_type] = postprocessing[label_type](raw_text=raw_text)
 
         return uie_output
