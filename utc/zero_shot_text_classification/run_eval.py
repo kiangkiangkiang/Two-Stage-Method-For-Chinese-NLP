@@ -101,7 +101,7 @@ def main():
         return {"micro_f1": micro_f1, "macro_f1": macro_f1}
 
     def compute_metrics_sklearn(eval_preds):
-        separate_eval = False
+        separate_eval = True
         metric = MetricReport()
         metric.reset()
 
@@ -125,7 +125,6 @@ def main():
 
         logger.info(f"Number of All True 1 labels: {paddle.sum(labels==1).item()}")
         logger.info(f"Number of All Predict 1 label: {paddle.sum(preds).item()}")
-        breakpoint()
         if labels.shape[1] != 55:
             logger.warning(
                 "Cannot apply separate evaluate. Due to the number of labels is not equal to 55. (Add or Remove labels ever?)"
@@ -133,6 +132,7 @@ def main():
             separate_eval = False
 
         if separate_eval:
+            label_name = ["體傷部位", "體傷程度", "肇事責任", "年齡"]
             # 部位: 0~8
             preds_injure_part = preds[:, :9]
             labels_injure_part = labels[:, :9]
@@ -149,30 +149,28 @@ def main():
             preds_age = preds[:, 47:]
             labels_age = labels[:, 47:]
 
-            preds = (preds_injure_part, preds_injure_level, preds_responsibility, preds_age)
-            labels = (labels_injure_part, labels_injure_level, labels_responsibility, labels_age)
+            preds_list = (preds_injure_part, preds_injure_level, preds_responsibility, preds_age)
+            labels_list = (labels_injure_part, labels_injure_level, labels_responsibility, labels_age)
 
-            for p, l in zip(preds, labels):
+            for p, l, name in zip(preds_list, labels_list, label_name):
                 metric.update(p, l)
                 micro_f1_score, macro_f1_score, accuracy, precision, recall = metric.accumulate()
-                logger.debug(f"micro_f1_score: {micro_f1_score}")
-                logger.debug(f"macro_f1_score: {macro_f1_score}")
-                logger.debug(f"accuracy: {accuracy}")
-                logger.debug(f"precision: {precision}")
-                logger.debug(f"recall: {recall}")
+                logger.debug(f"====={name}=====")
+                logger.debug(
+                    f"micro_f1_score: {micro_f1_score}. macro_f1_score: {macro_f1_score}. accuracy: {accuracy}. precision: {precision}. recall: {recall}."
+                )
                 metric.reset()
 
-        else:
-            metric.update(preds, labels)
-            micro_f1_score, macro_f1_score, accuracy, precision, recall = metric.accumulate()
-            metric.reset()
-            return {
-                "eval_micro_f1": micro_f1_score,
-                "eval_macro_f1": macro_f1_score,
-                "accuracy_score": accuracy,
-                "precision_score": precision,
-                "recall_score": recall,
-            }
+        metric.update(preds, labels)
+        micro_f1_score, macro_f1_score, accuracy, precision, recall = metric.accumulate()
+        metric.reset()
+        return {
+            "eval_micro_f1": micro_f1_score,
+            "eval_macro_f1": macro_f1_score,
+            "accuracy_score": accuracy,
+            "precision_score": precision,
+            "recall_score": recall,
+        }
 
     trainer = PromptTrainer(
         model=prompt_model,
