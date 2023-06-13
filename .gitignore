@@ -3,3 +3,4 @@ utc/zero_shot_text_classification/__pycache__
 uie/checkpoint/
 uie/__pycache__
 utc/zero_shot_text_classification/uie_model/model_best
+utc/zero_shot_text_classification/uie_model/checkpoint-250-30data
