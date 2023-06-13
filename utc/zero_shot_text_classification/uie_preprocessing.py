@@ -157,4 +157,4 @@ if __name__ == "__main__":
     for each_schema in SCHEMA:
         logger.debug(f"{each_schema} 的沒抓到率: {missing_recode_delete_me[each_schema]/total_delete_me[each_schema]}.")
 
-    shutil.copyfile(os.path.join(args.dataset_path, "label.txt"), output_path + "label.txt")
+    # shutil.copyfile(os.path.join(args.dataset_path, "label.txt"), output_path + "label.txt")
