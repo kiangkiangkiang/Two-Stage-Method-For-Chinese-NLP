@@ -11,7 +11,8 @@ import json
 from uie_model.filter_text import filter_text
 
 SCHEMA = ["原告年齡", "肇事過失責任比例", "受有傷害"]
-DOUBLE_CHECK = True
+IS_DOUBLE_CHECK = True
+IS_RULE_BASED_POSTPROCESSING = True
 
 # TODO delete do_double_check (this for debug)
 missing_recode_delete_me = {entity_type: 0 for entity_type in SCHEMA}
@@ -19,20 +20,20 @@ error_recode_delete_me = missing_recode_delete_me.copy()
 total_delete_me = missing_recode_delete_me.copy()
 
 
-def do_double_check(uie_output, labels):
+def double_check(uie_output, labels):
     label_counter = {entity_type: 0 for entity_type in SCHEMA}
     found_label = label_counter.copy()
 
     for label in labels:
         if label < 36:
-            label_counter["受有傷害"] += 1
-            total_delete_me["受有傷害"] += 1
+            label_counter[SCHEMA[2]] += 1
+            total_delete_me[SCHEMA[2]] += 1
         elif label >= 36 and label < 47:
-            label_counter["肇事過失責任比例"] += 1
-            total_delete_me["肇事過失責任比例"] += 1
+            label_counter[SCHEMA[1]] += 1
+            total_delete_me[SCHEMA[1]] += 1
         else:
-            label_counter["原告年齡"] += 1
-            total_delete_me["原告年齡"] += 1
+            label_counter[SCHEMA[0]] += 1
+            total_delete_me[SCHEMA[0]] += 1
 
     for key in uie_output[0]:
         found_label[key] += 1
@@ -44,6 +45,61 @@ def do_double_check(uie_output, labels):
         elif label_counter[each_schema] == 0 and found_label[each_schema] > 0:
             error_recode_delete_me[each_schema] += 1
             logger.debug(f"UIE 抓錯 「{each_schema}. Total: {error_recode_delete_me[each_schema]}")
+
+
+class rule_based_processer(object):
+    def __init__(self) -> None:
+        pass
+
+    def __call__(self, intput):
+        print(input - 5)
+        pass
+
+
+rule_based_processer(123)
+
+
+def add_age_information_index(raw_text):
+    simulate_uie_output = {}
+
+    return simulate_uie_output
+
+
+def add_responsibility_information_index(raw_text):
+    simulate_uie_output = {}
+
+    return simulate_uie_output
+
+
+def add_injury_information_index(raw_text):
+    simulate_uie_output = {}
+
+    return simulate_uie_output
+
+
+# 當 label 長度或順序改變 這個 fun 會有問題
+def rule_based_postprocessing(raw_text, uie_output, labels):
+    new_uie_output = []
+    postprocessing_function_set = (
+        add_age_information_index,
+        add_responsibility_information_index,
+        add_injury_information_index,
+    )
+    postprocessing = {label_type: do_fun for label_type, do_fun in zip(SCHEMA, postprocessing_function_set)}
+    has_label_type = {label_type: False for label_type in SCHEMA}
+    for label in labels:
+        if label < 36:
+            has_label_type[SCHEMA[2]] = True
+        elif label >= 36 and label < 47:
+            has_label_type[SCHEMA[1]] = True
+        else:
+            has_label_type[SCHEMA[0]] = True
+
+    for label_type in SCHEMA:
+        if uie_output[0].get(label_type) is None and has_label_type[label_type]:
+            uie_output[0][label_type] = postprocessing[label_type](raw_text=raw_text)
+
+    return new_uie_output
 
 
 def write_json(data, out_path):
@@ -120,8 +176,14 @@ if __name__ == "__main__":
             for example in tqdm(fp, total=number_of_examples):
                 example = json.loads(example.strip())
                 uie_output = uie(example["text_a"])
-                if DOUBLE_CHECK:
-                    do_double_check(uie_output, example["labels"])
+                if IS_DOUBLE_CHECK:
+                    double_check(uie_output, example["labels"])
+
+                if IS_RULE_BASED_POSTPROCESSING:
+                    uie_output = rule_based_processer(
+                        raw_text=example["text_a"], uie_output=uie_output, labels=example["labels"]
+                    )
+
                 new_text = filter_text(
                     raw_text=example["text_a"],
                     uie_output=uie_output,
