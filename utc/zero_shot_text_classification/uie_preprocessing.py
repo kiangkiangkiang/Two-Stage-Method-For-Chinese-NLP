@@ -9,6 +9,7 @@ import numpy as np
 import shutil
 import json
 from uie_model.filter_text import filter_text
+from paddlenlp.transformers import AutoTokenizer
 
 SCHEMA = ["原告年齡", "肇事過失責任比例", "受有傷害"]
 IS_DOUBLE_CHECK = True
@@ -47,59 +48,45 @@ def double_check(uie_output, labels):
             logger.debug(f"UIE 抓錯 「{each_schema}. Total: {error_recode_delete_me[each_schema]}")
 
 
-class rule_based_processer(object):
-    def __init__(self) -> None:
-        pass
+class rule_based_processer:
+    def add_age_information_index(self, raw_text):
+        simulate_uie_output = {}
 
-    def __call__(self, intput):
-        print(input - 5)
-        pass
+        return simulate_uie_output
 
+    def add_responsibility_information_index(self, raw_text):
+        simulate_uie_output = {}
 
-rule_based_processer(123)
+        return simulate_uie_output
 
+    def add_injury_information_index(self, raw_text):
+        simulate_uie_output = {}
 
-def add_age_information_index(raw_text):
-    simulate_uie_output = {}
+        return simulate_uie_output
 
-    return simulate_uie_output
+    # 當 label 長度或順序改變 這個 fun 會有問題
+    @classmethod
+    def postprocessing(cls, raw_text, uie_output, labels):
+        postprocessing_function_set = (
+            cls.add_age_information_index,
+            cls.add_responsibility_information_index,
+            cls.add_injury_information_index,
+        )
+        postprocessing = {label_type: do_fun for label_type, do_fun in zip(SCHEMA, postprocessing_function_set)}
+        has_label_type = {label_type: False for label_type in SCHEMA}
+        for label in labels:
+            if label < 36:
+                has_label_type[SCHEMA[2]] = True
+            elif label >= 36 and label < 47:
+                has_label_type[SCHEMA[1]] = True
+            else:
+                has_label_type[SCHEMA[0]] = True
 
+        for label_type in SCHEMA:
+            if uie_output[0].get(label_type) is None and has_label_type[label_type]:
+                uie_output[0][label_type] = postprocessing[label_type](raw_text=raw_text)
 
-def add_responsibility_information_index(raw_text):
-    simulate_uie_output = {}
-
-    return simulate_uie_output
-
-
-def add_injury_information_index(raw_text):
-    simulate_uie_output = {}
-
-    return simulate_uie_output
-
-
-# 當 label 長度或順序改變 這個 fun 會有問題
-def rule_based_postprocessing(raw_text, uie_output, labels):
-    new_uie_output = []
-    postprocessing_function_set = (
-        add_age_information_index,
-        add_responsibility_information_index,
-        add_injury_information_index,
-    )
-    postprocessing = {label_type: do_fun for label_type, do_fun in zip(SCHEMA, postprocessing_function_set)}
-    has_label_type = {label_type: False for label_type in SCHEMA}
-    for label in labels:
-        if label < 36:
-            has_label_type[SCHEMA[2]] = True
-        elif label >= 36 and label < 47:
-            has_label_type[SCHEMA[1]] = True
-        else:
-            has_label_type[SCHEMA[0]] = True
-
-    for label_type in SCHEMA:
-        if uie_output[0].get(label_type) is None and has_label_type[label_type]:
-            uie_output[0][label_type] = postprocessing[label_type](raw_text=raw_text)
-
-    return new_uie_output
+        return uie_output
 
 
 def write_json(data, out_path):
@@ -180,7 +167,7 @@ if __name__ == "__main__":
                     double_check(uie_output, example["labels"])
 
                 if IS_RULE_BASED_POSTPROCESSING:
-                    uie_output = rule_based_processer(
+                    uie_output = rule_based_processer.postprocessing(
                         raw_text=example["text_a"], uie_output=uie_output, labels=example["labels"]
                     )
 
