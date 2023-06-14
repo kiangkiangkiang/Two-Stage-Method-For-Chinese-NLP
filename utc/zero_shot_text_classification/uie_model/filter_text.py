@@ -30,14 +30,10 @@ def get_sliding_window_of_each_result(
 ):
     sliding_windows = []
     for each_result in flatten_uie_result:
-        text_len = each_result["end"] - each_result["start"]
-        sliding_windows_len = int(np.round((sliding_window_length - text_len) / 2))
-        start = each_result["start"] - sliding_windows_len if each_result["start"] - sliding_windows_len > 0 else 0
-        end = (
-            each_result["end"] + sliding_windows_len
-            if each_result["end"] + sliding_windows_len < max_length_of_content
-            else max_length_of_content
-        )
+        mid = int(np.median((each_result["start"], each_result["end"])))
+        sliding_windows_len = int(np.round(sliding_window_length / 2))
+        start = mid - sliding_windows_len if mid - sliding_windows_len > 0 else 0
+        end = mid + sliding_windows_len if mid + sliding_windows_len < max_length_of_content else max_length_of_content
 
         sliding_windows.append({"start": start, "end": end})
 
@@ -61,6 +57,7 @@ def filter_text(
 
     raw_text_len = len(raw_text) - 1
 
+    # TODO len(flatten_uie_result) 太小會有問題
     each_result_len = int(np.round((max_len_of_new_text / len(flatten_uie_result))))
 
     sliding_windows = get_sliding_window_of_each_result(

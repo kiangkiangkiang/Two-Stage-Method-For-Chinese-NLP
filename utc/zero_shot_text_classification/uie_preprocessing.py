@@ -13,13 +13,16 @@ from paddlenlp.transformers import AutoTokenizer
 import re
 
 SCHEMA = ["原告年齡", "肇事過失責任比例", "受有傷害"]
-IS_DOUBLE_CHECK = True
+IS_DOUBLE_CHECK = False
 IS_RULE_BASED_POSTPROCESSING = True
 
 # TODO delete do_double_check (this for debug)
 missing_recode_delete_me = {entity_type: 0 for entity_type in SCHEMA}
 error_recode_delete_me = missing_recode_delete_me.copy()
 total_delete_me = missing_recode_delete_me.copy()
+default_counter = missing_recode_delete_me.copy()
+fail_examples = {}
+fail_examples["total_counter"] = 0
 
 
 def double_check(uie_output, labels):
@@ -49,16 +52,40 @@ def double_check(uie_output, labels):
             logger.debug(f"UIE 抓錯 「{each_schema}. Total: {error_recode_delete_me[each_schema]}")
 
 
-class rule_based_processer:
+"""
+{'受有傷害': [{'text': '右側', 'start': 452, 'end': 454, 'probability': 0.565}, 
+             {'text': '左側手肘擦傷', 'start': 445, 'end': 451, 'probability': 0.83764506836}, 
+             {'text': '右側', 'start': 442, 'end': 444, 'probability': 0.7103648}, 
+             {'text': '右側', 'start': 462, 'end': 464, 'probability': 0.5141215855},
+             {'text': '左側膝部擦傷', 'start': 465, 'end': 471, 'probability': 0.74013138}, 
+             {'text': '左側髖部挫傷', 'start': 455, 'end': 461, 'probability': 0.853}]
+} 
+"""
 
-    label_counter = {entity_type: 0 for entity_type in SCHEMA + ["total"]}
+
+class rule_based_processer:
+    def __init__(self) -> None:
+        self.default_uie_format = [
+            {
+                "text": "預設輸出",
+                "start": 0,
+                "end": 1,
+                "probability": 0.5,  # any float is ok
+            }
+        ]
 
     def __re_to_uie_format(self, re_result):
-        pass
-
-    def __default_uie_format(self, raw_text):
-        self.label_counter
-        pass
+        simulate_uie_output = []
+        for result in re_result:
+            simulate_uie_output.append(
+                {
+                    "text": result.group(),
+                    "start": result.start(),
+                    "end": result.end(),
+                    "probability": 0.5,  # any float is ok
+                }
+            )
+        return simulate_uie_output
 
     def add_age_information_index(self, raw_text):
         result = []
@@ -74,29 +101,27 @@ class rule_based_processer:
         for match in re.finditer(pattern, raw_text):
             result.append(match)
 
-        return self.__re_to_uie_format([result]) if result else self.__default_uie_format(raw_text)
+        return self.__re_to_uie_format(result) if result else self.default_uie_format
 
     def add_responsibility_information_index(self, raw_text):
         # stage 1
         result = []
-        pattern0 = "%.{0,20}過失|過失.{0,20}%"
-        pattern1 = "%.{0,20}責任|責任.{0,20}%"
-        pattern2 = "%.{0,20}肇事|肇事.{0,20}%"
-        pattern3, pattern5, pattern6 = (eval("pattern" + str(i)).replace("%", "分之") for i in range(3))
-        pattern6, pattern7, pattern8 = (eval("pattern" + str(i)).replace("%", "％") for i in range(3))
-        pattern9, pattern10, pattern11 = (eval("pattern" + str(i)).replace("%", "/") for i in range(3))
-        pattern = "".join([eval("pattern" + str(p)) + "|" for p in range(12)])[:-1]
+        pattern0 = ["%.{0,20}過失|過失.{0,20}%", "%.{0,20}責任|責任.{0,20}%", "%.{0,20}肇事|肇事.{0,20}%"]
+        pattern1 = [i.replace("%", "分之") for i in pattern0]
+        pattern2 = [i.replace("%", "％") for i in pattern0]
+        pattern3 = [i.replace("%", "/") for i in pattern0]
+        pattern = "".join([u + "|" for i in (pattern0, pattern1, pattern2, pattern3) for u in i])[:-1]
         for match in re.finditer(pattern, raw_text):
             result.append(match)
         if result:
-            return self.__re_to_uie_format([result])
+            return self.__re_to_uie_format(result)
 
         # stage 2
         pattern = "比例|%|肇事|責任|過失|％|[^部]分之"
         for match in re.finditer(pattern, raw_text):
             result.append(match)
 
-        return self.__re_to_uie_format([result]) if result else self.__default_uie_format(raw_text)
+        return self.__re_to_uie_format(result) if result else self.default_uie_format
 
     def add_injury_information_index(self, raw_text):
         # stage 1
@@ -111,15 +136,14 @@ class rule_based_processer:
         for match in re.finditer(pattern, raw_text):
             result.append(match)
 
-        return self.__re_to_uie_format([result]) if result else self.__default_uie_format(raw_text)
+        return self.__re_to_uie_format(result) if result else self.default_uie_format
 
     # 當 label 長度或順序改變 這個 fun 會有問題
-    @classmethod
-    def postprocessing(cls, raw_text, uie_output, labels):
+    def postprocessing(self, raw_text, uie_output, labels):
         postprocessing_function_set = (
-            cls.add_age_information_index,
-            cls.add_responsibility_information_index,
-            cls.add_injury_information_index,
+            self.add_age_information_index,
+            self.add_responsibility_information_index,
+            self.add_injury_information_index,
         )
         postprocessing = {label_type: do_fun for label_type, do_fun in zip(SCHEMA, postprocessing_function_set)}
         has_label_type = {label_type: False for label_type in SCHEMA}
@@ -134,6 +158,9 @@ class rule_based_processer:
         for label_type in SCHEMA:
             if uie_output[0].get(label_type) is None and has_label_type[label_type]:
                 uie_output[0][label_type] = postprocessing[label_type](raw_text=raw_text)
+                if uie_output[0][label_type][0]["text"] == "預設輸出":
+                    default_counter[label_type] += 1
+                    logger.debug(f"{label_type} default: default_counter[label_type]")
 
         return uie_output
 
@@ -150,6 +177,7 @@ if __name__ == "__main__":
     # python uie_preprocessing.py --max_seq_len 768 --threshold 0.0 --uie_model_name_or_path uie_model/model_best/ --dataset_path ./toy_data
     # python uie_preprocessing.py --max_seq_len 768 --threshold 0.0 --uie_model_name_or_path uie_model/model_best/
     parser = argparse.ArgumentParser()
+    processer = rule_based_processer()
     parser.add_argument(
         "--dataset_path",
         default="./data",
@@ -194,8 +222,6 @@ if __name__ == "__main__":
         os.makedirs(output_path)
 
     # processing
-    fail_examples = {}
-    fail_examples["total_counter"] = 0
     total = 0
     for data_name in (args.train_file, args.dev_file, args.test_file):
         out_text = []
@@ -212,11 +238,12 @@ if __name__ == "__main__":
             for example in tqdm(fp, total=number_of_examples):
                 example = json.loads(example.strip())
                 uie_output = uie(example["text_a"])
+
                 if IS_DOUBLE_CHECK:
                     double_check(uie_output, example["labels"])
 
                 if IS_RULE_BASED_POSTPROCESSING:
-                    uie_output = rule_based_processer.postprocessing(
+                    uie_output = processer.postprocessing(
                         raw_text=example["text_a"], uie_output=uie_output, labels=example["labels"]
                     )
 
@@ -228,13 +255,7 @@ if __name__ == "__main__":
                     dynamic_adjust_length=args.dynamic_adjust_length,
                 )
 
-                if len(new_text) == 0 and len(example["labels"]) > 0:
-                    fail_examples[data_name]["fail_counter"] += 1
-                    fail_examples["total_counter"] += 1
-                    fail_examples[data_name]["fail_examples"].append(example)
-                    logger.debug(fail_examples["total_counter"])
-                    continue
-                elif len(new_text) == 0 and len(example["labels"]) == 0:
+                if len(new_text) == 0 and len(example["labels"]) == 0:
                     new_text = example["text_a"][:10]
 
                 example["text_a"] = new_text
@@ -242,16 +263,16 @@ if __name__ == "__main__":
 
         write_json(out_text, out_path=os.path.join(output_path, data_name))
         logger.info(f"Finish {data_name} processing. Total samples: {len(out_text)}.")
-        logger.info(f"Fail in {data_name} samples: {fail_examples[data_name]['fail_counter']}.")
 
-    logger.debug(f"Fail samples: {fail_examples}")
-    logger.info(f"Total fail {fail_examples['total_counter']} examples in {total}.")
-    logger.info(f"UIE Missing Rate: {fail_examples['total_counter']/total}.")
     logger.info(f"Finish all preprocessing.")
 
-    logger.debug(f"沒抓到 {missing_recode_delete_me}")
-    logger.debug(f"抓錯 {error_recode_delete_me}")
-    logger.debug(f"Total: {total_delete_me}")
+    if IS_DOUBLE_CHECK:
+        logger.debug(f"沒抓到 {missing_recode_delete_me}")
+        logger.debug(f"抓錯 {error_recode_delete_me}")
+        logger.debug(f"Total: {total_delete_me}")
+
+    logger.debug(f"規則也抓不到而走到 default 的筆數: {default_counter}")
+
     for each_schema in SCHEMA:
         logger.debug(f"{each_schema} 的沒抓到率: {missing_recode_delete_me[each_schema]/total_delete_me[each_schema]}.")
 
