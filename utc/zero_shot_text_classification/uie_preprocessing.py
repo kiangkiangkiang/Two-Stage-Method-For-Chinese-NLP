@@ -10,6 +10,7 @@ import shutil
 import json
 from uie_model.filter_text import filter_text
 from paddlenlp.transformers import AutoTokenizer
+import re
 
 SCHEMA = ["原告年齡", "肇事過失責任比例", "受有傷害"]
 IS_DOUBLE_CHECK = True
@@ -49,20 +50,68 @@ def double_check(uie_output, labels):
 
 
 class rule_based_processer:
-    def add_age_information_index(self, raw_text):
-        simulate_uie_output = {}
 
-        return simulate_uie_output
+    label_counter = {entity_type: 0 for entity_type in SCHEMA + ["total"]}
+
+    def __re_to_uie_format(self, re_result):
+        pass
+
+    def __default_uie_format(self, raw_text):
+        self.label_counter
+        pass
+
+    def add_age_information_index(self, raw_text):
+        result = []
+        # stage 1
+        pattern = ".[^65]歲|出生|年.{0,5}[^發|^產]生|年次|年紀"
+        for match in re.finditer(pattern, raw_text):
+            result.append(match)
+        if result:
+            return self.__re_to_uie_format(result)
+
+        # stage 2
+        pattern = "歲|退休|學生|小學|國中|高中|大學|研究所|畢業|未成年|原告.{0,15}年}"
+        for match in re.finditer(pattern, raw_text):
+            result.append(match)
+
+        return self.__re_to_uie_format([result]) if result else self.__default_uie_format(raw_text)
 
     def add_responsibility_information_index(self, raw_text):
-        simulate_uie_output = {}
+        # stage 1
+        result = []
+        pattern0 = "%.{0,20}過失|過失.{0,20}%"
+        pattern1 = "%.{0,20}責任|責任.{0,20}%"
+        pattern2 = "%.{0,20}肇事|肇事.{0,20}%"
+        pattern3, pattern5, pattern6 = (eval("pattern" + str(i)).replace("%", "分之") for i in range(3))
+        pattern6, pattern7, pattern8 = (eval("pattern" + str(i)).replace("%", "％") for i in range(3))
+        pattern9, pattern10, pattern11 = (eval("pattern" + str(i)).replace("%", "/") for i in range(3))
+        pattern = "".join([eval("pattern" + str(p)) + "|" for p in range(12)])[:-1]
+        for match in re.finditer(pattern, raw_text):
+            result.append(match)
+        if result:
+            return self.__re_to_uie_format([result])
 
-        return simulate_uie_output
+        # stage 2
+        pattern = "比例|%|肇事|責任|過失|％|[^部]分之"
+        for match in re.finditer(pattern, raw_text):
+            result.append(match)
+
+        return self.__re_to_uie_format([result]) if result else self.__default_uie_format(raw_text)
 
     def add_injury_information_index(self, raw_text):
-        simulate_uie_output = {}
+        # stage 1
+        pattern = "受有.{0,100}傷害|受有.{0,100}傷勢"
+        result = re.search(pattern=pattern, string=raw_text)
+        if result:
+            return self.__re_to_uie_format([result])
 
-        return simulate_uie_output
+        # stage 2
+        pattern = "受有|傷"
+        result = []
+        for match in re.finditer(pattern, raw_text):
+            result.append(match)
+
+        return self.__re_to_uie_format([result]) if result else self.__default_uie_format(raw_text)
 
     # 當 label 長度或順序改變 這個 fun 會有問題
     @classmethod
@@ -84,7 +133,6 @@ class rule_based_processer:
 
         for label_type in SCHEMA:
             if uie_output[0].get(label_type) is None and has_label_type[label_type]:
-                breakpoint()
                 uie_output[0][label_type] = postprocessing[label_type](raw_text=raw_text)
 
         return uie_output
