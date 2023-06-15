@@ -1,6 +1,14 @@
-# Two Stage Chinese Verdict Classification
+# Two Stage Chinese Verdict Classification (二階段臺灣司法判決書分析)
 
-In this work, we present a two stage chinese verdict classification method, which overcomes the long sequence issue, and 
+--- 
+
+## Abstract
+
+We present a two stage chinese verdict classification method overcomes the long sequence issue and 
+
+## 
 
 
  <img src="img/general_architecture.png">
+
+
