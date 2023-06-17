@@ -13,7 +13,7 @@ from paddlenlp.transformers import AutoTokenizer
 import re
 
 SCHEMA = ["原告年齡", "肇事過失責任比例", "受有傷害"]
-IS_DOUBLE_CHECK = False
+IS_DOUBLE_CHECK = True
 IS_RULE_BASED_POSTPROCESSING = True
 
 # TODO delete do_double_check (this for debug)
