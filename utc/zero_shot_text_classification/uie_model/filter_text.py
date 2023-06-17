@@ -129,7 +129,7 @@ if __name__ == "__main__":
     parser.add_argument("--dynamic_adjust_length", type=str, default="True", help="dssss")
     args = parser.parse_args()
     args.dynamic_adjust_length = eval(args.dynamic_adjust_length)
-    model = Taskflow("information_extraction", task_path=args.model_name_or_path, schema=schema, precision="fp16")
+    model = Taskflow("information_extraction", task_path=args.model_name_or_path, schema=schema, precision="fp16", batch_size=4)
 
     # setting
     max_content_len = args.max_seq_len - args.special_word_len
