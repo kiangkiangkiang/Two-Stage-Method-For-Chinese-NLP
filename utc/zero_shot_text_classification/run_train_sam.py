@@ -12,12 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# import sys
+
+# sys.path.append("/home/ubuntu/projects/Paddle")
+# sys.path.append("/home/ubuntu/projects/PaddleNLP")
+
 from dataclasses import dataclass, field
 from metric import MetricReport
 
 from paddlenlp.prompt import PromptTrainer
 
 import paddle
+from paddle import optimizer
 import paddle.nn.functional as F
 from paddle.metric import Accuracy
 from paddle.static import InputSpec
@@ -287,6 +293,12 @@ def main():
         eval_dataset=dev_ds,
         callbacks=None,
         compute_metrics=compute_metrics_sklearn,
+        optimizers=(
+            optimizer.SAM(
+                parameters=model.parameters(),
+                rho=0.05, 
+                adaptive=False,
+        ), None)
     )
     # compute_metrics=compute_metrics_single_label if data_args.single_label else compute_metrics,
     # data_collator=myDataCollator(tokenizer, padding=True, return_tensors="pd"),
