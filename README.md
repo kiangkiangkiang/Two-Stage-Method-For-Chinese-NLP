@@ -29,7 +29,6 @@ Our designed two-stage method is illustrated in the following diagram. This meth
 
 <img src = "img/general_architecture.png" style="width:60%"  align="center"></img>
 
-![](https://hackmd.io/_uploads/Syy1RM_wn.png)
 
 
 The key to this architecture lies in the [UIE (Universal Information Extraction)](https://github.com/PaddlePaddle/PaddleNLP/tree/develop/model_zoo/uie) model, which is presented by [PaddleNLP](https://github.com/PaddlePaddle/PaddleNLP/tree/develop) and has shown excellent performance on Chinese NLP tasks such as NER (Named Entity Recognition) or RE (Relation Extraction). We use UIE model to extract the important information and collect the information to feed the downstream task model.
@@ -59,9 +58,6 @@ Through this architecture, we address the issue of Chinese Verdicts.
 
 This allows us to perform simplified clustering or modeling to determine the judgment category. Additionally, by leveraging the features of each judgment, we can assist claims adjusters in **rapidly screening similar judgments, facilitating efficient matching of cases.**
 
-So we implement the two-stage method into the following structure:
-
-#TODO
 ## Results
 
 
