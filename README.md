@@ -27,7 +27,7 @@ In the past, addressing the issue of long sequence might involve using recurrent
 
 Our designed two-stage method is illustrated in the following diagram. This method can overcome challenges posed by any long sequence and only requires replacing the downstream task model.
 
-<img src = "img/general_architecture.png" style="width:80%"  align="center"></img>
+<img src = "img/general_architecture.png" style="width:60%"  align="center"></img>
 
 ![](https://hackmd.io/_uploads/Syy1RM_wn.png)
 
