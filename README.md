@@ -67,14 +67,17 @@ So we implement the two-stage method into the following structure:
 
 | **Model**         |  **Precision** | **Recall** |  **F1** |
 |:-----------------:|:--------------:|:----------:|:-------:|
-|      Ernie        |  Completed  |  Eric   | 2022/10/1     |
-|  Ernie (chunk)    | In Progress |  Eric   | 2022/9/30     |
-|  XLNet            | Not statred |  Eric   | 2022/9/20     |
-|Two-Stage (UIE+UTC)|             |         |               |
+|      Ernie        |  0.522  |  0.354   | 0.422     |
+|  Ernie (chunk)    | 0.403 |  0.359   | 0.380    |
+|  XLNet            | 0.638 |  0.461   | 0.535     |
+|Two-Stage (UIE+UTC)|  **0.9276**   |  **0.9038**  |  **0.9156**   |
 
+We use the Ernie model, which will truncate sequence that length upper than 2048, chunking Ernie model, XLNet, and our two-stage method for this task. 
+
+
+As shown in the above table, our developed two-stage method clearly outperforms other methods. This indicates that for the model, long sequences can indeed be considered noise, and effective information extraction can significantly improve efficiency.
 
 ## Quick Start
-
 
 ### Stage 1
 
