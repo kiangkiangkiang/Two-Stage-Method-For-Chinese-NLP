@@ -27,6 +27,7 @@ In the past, addressing the issue of long sequence might involve using recurrent
 
 Our designed two-stage method is illustrated in the following diagram. This method can overcome challenges posed by any long sequence and only requires replacing the downstream task model.
 
+<img src = "img/general_architecture.png" align = "center"></img>
 
 ![](https://hackmd.io/_uploads/Syy1RM_wn.png)
 
@@ -60,8 +61,7 @@ This allows us to perform simplified clustering or modeling to determine the jud
 
 So we implement the two-stage method into the following structure:
 
-
-
+#TODO
 ## Results
 
 
