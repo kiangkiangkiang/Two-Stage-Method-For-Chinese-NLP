@@ -5,6 +5,8 @@ import argparse
 import pandas as pd
 from tqdm import tqdm
 from sklearn.metrics import classification_report, f1_score, accuracy_score, precision_score, recall_score
+import time
+
 
 def unwrap_keys(obj, prefix='', keys=None):
     if keys is None:
@@ -35,11 +37,16 @@ def openai_chat_inference_and_calculate(
         temperature=0.0
         ):
 
-    response = openai.ChatCompletion.create(
-        model=model,
-        messages=messeage_prepare(text, prompt=prompt_stage, system_info=system_info),
-        temperature=temperature,
-        )
+    try:
+        response = openai.ChatCompletion.create(
+            model=model,
+            messages=messeage_prepare(text, prompt=prompt_stage, system_info=system_info),
+            temperature=temperature,
+            )
+
+    except:
+        print("The server is overloaded")
+        breakpoint()
 
     completions = response["choices"][0]["message"]["content"]
     tokens_info["prompt_tokens"] += response["usage"]["prompt_tokens"]
@@ -113,6 +120,7 @@ def prepare_prompt(additional_and_desc_dict, target_and_desc_dict, prompt_label,
 def get_text_index(text, target):
     index = [(i.start(0), i.end(0)) for i in re.finditer(target, text)] if target != '' else []
     return index
+
 
 def main(args):     
     f = open("openai_api.txt", "r")
@@ -224,6 +232,7 @@ def main(args):
     verdict_input_dict = {key:[d[key] for d in list_of_dict] for key in list_id_verdict_label}
      
     epoch_bar = tqdm(range(start_idx, args.batch_size), desc="Calling OpenAI API...")
+
     for idx in range(start_idx, args.batch_size):
         
         #### Choose model
@@ -240,7 +249,7 @@ def main(args):
         summary_chunk_token_start_idx = summary_chunk_token_length - summary_chunk_token_overlap_token
         
         #### Stage 1: Summarizing chunk
-        idx_split_verdict_start_iterator = range(0,len(verdict),summary_chunk_token_start_idx)
+        idx_split_verdict_start_iterator = range(0, len(verdict), summary_chunk_token_start_idx)
         epoch_bar_chunk = tqdm(idx_split_verdict_start_iterator, desc=f"Summary chunk with {summary_model}")
 
         completions =  ""
@@ -251,6 +260,7 @@ def main(args):
             split_verdict = verdict[idx_split_verdict_start:idx_split_verdict_end]
             
             completions_with_text = "\n[已知訊息]\n" + completions + "\n[文本]:" + split_verdict
+
             completions, tokens_info = openai_chat_inference_and_calculate(
                 summary_model, 
                 completions_with_text, 
@@ -350,7 +360,7 @@ def main(args):
                         f"This article total cost NTD":tokens_info_summary["total_tokens"]//1000*summary_cost_per_1k_token
                                                    +tokens_info_format["total_tokens"]//1000*format_cost_per_1k_token,
         })
-
+        
         #### Save file after n prompt
         if (idx+1) % args.save_step == 0:
             df = pd.DataFrame(dataframe_info)
@@ -367,7 +377,7 @@ if __name__ == '__main__':
     parser.add_argument('--summary_model', type=str, default='gpt-3.5-turbo-0301')
     parser.add_argument('--format_model', type=str, default='gpt-4')
     parser.add_argument('--list_nlp_task', type=str, nargs='*', default=['cls', 'uie'])
-    parser.add_argument('--batch_size', type=int, default=108)
+    parser.add_argument('--batch_size', type=int, default=100)
     parser.add_argument('--retry_size', type=int, default=3)
     parser.add_argument('--list_id_verdict_label', type=str, nargs='*', default=['id', 'data', 'label'])
     parser.add_argument('--check_inner_output', type=bool, default=True)
