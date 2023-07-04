@@ -4,7 +4,6 @@ import openai
 import argparse
 import pandas as pd
 from tqdm import tqdm
-from sklearn.metrics import classification_report, f1_score, accuracy_score, precision_score, recall_score
 import time
 
 
@@ -37,16 +36,16 @@ def openai_chat_inference_and_calculate(
         temperature=0.0
         ):
 
-    try:
-        response = openai.ChatCompletion.create(
-            model=model,
-            messages=messeage_prepare(text, prompt=prompt_stage, system_info=system_info),
-            temperature=temperature,
-            )
+    # try:
+    response = openai.ChatCompletion.create(
+        model=model,
+        messages=messeage_prepare(text, prompt=prompt_stage, system_info=system_info),
+        temperature=temperature,
+        )
 
-    except:
-        print("The server is overloaded")
-        breakpoint()
+    # except:
+    #     print("The server is overloaded")
+    #     breakpoint()
 
     completions = response["choices"][0]["message"]["content"]
     tokens_info["prompt_tokens"] += response["usage"]["prompt_tokens"]
@@ -146,8 +145,8 @@ def main(args):
             "原告出生年份":"可能為無",
         })
         cls_category_dict = {
-            "體傷部位":['頭頸部', '臉', '胸部', '腹部', '背部', '骨盆', '上肢', '下肢', '其他'],
-            "體傷型態":['骨折', '骨裂', '擦挫傷', '撕裂傷', '鈍傷', '損傷', '胸部損傷', '神經損傷', '拉傷', '扭傷', '灼傷', '脫位', '壓迫', '破缺損', '腦震盪', '壞死', '內出血', '水腫', '瘀血', '栓塞', '剝離', '截肢', '衰竭', '休克', '失能', '死亡', '其他'],
+            "體傷部位":['頭頸部', '臉', '胸部', '腹部', '背部', '骨盆', '上肢', '下肢', '其他體傷部位'],
+            "體傷型態":['骨折', '骨裂', '擦挫傷', '撕裂傷', '鈍傷', '損傷', '胸部損傷', '神經損傷', '拉傷', '扭傷', '灼傷', '脫位', '壓迫', '破缺損', '腦震盪', '壞死', '內出血', '水腫', '瘀血', '栓塞', '剝離', '截肢', '衰竭', '休克', '失能', '死亡', '其他體傷型態'],
             "原告肇責比例":['肇責 0/100', '肇責 10/90', '肇責 20/80', '肇責 30/70', '肇責 40/60', '肇責 50/50', '肇責 60/40', '肇責 70/30', '肇責 80/20', '肇責 90/10', '肇責 100/0'],
             "原告年齡":['未滿18歲(高中以下)', '18-24歲(大學、研究所)', '25-29歲', '30-39歲', '40-49歲', '50-59歲', '60-64歲', '65歲以上(退休)'],
             }
