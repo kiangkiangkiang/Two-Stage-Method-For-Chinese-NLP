@@ -245,3 +245,28 @@ class UTCLoss(object):
 
 def uie_preprocessing():
     pass
+
+
+def read_inference_dataset(data_path, data_file=None, options="./data/label.txt"):
+    """
+    Load datasets with one example per line, formated as:
+        {"text_a": X, "text_b": X, "question": X, "choices": [A, B], "labels": [0, 1]}
+    """
+    if data_file is not None:
+        file_paths = [os.path.join(data_path, fname) for fname in os.listdir(data_path) if fname.endswith(data_file)]
+    else:
+        file_paths = [data_path]
+
+    with open(options, "r", encoding="utf-8") as fp:
+        choices = [x.strip() for x in fp]
+
+    skip_count = 0
+    for file_path in file_paths:
+        with open(file_path, "r", encoding="utf-8") as fp:
+            for example in fp:
+                example = json.loads(example.strip())
+                example["text_b"] = ""
+                example["choices"] = choices
+                yield example
+
+    logger.warning(f"Skip {skip_count} examples.")

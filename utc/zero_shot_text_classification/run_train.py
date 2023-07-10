@@ -39,12 +39,9 @@ from paddlenlp.prompt import (
 
 from paddlenlp.prompt import PromptModelForSequenceClassification
 
-# from modeling import PromptModelForSequenceClassification
 from modeling import myDataCollator
-# from utc_trainer import myUTCTrainer
 from paddlenlp.trainer import PdArgumentParser
 from paddlenlp.transformers import AutoTokenizer, export_model, UTC
-from modeling import myUTC, myUTCTemplate
 import os
 from paddlenlp.utils.log import logger
 import numpy as np
@@ -94,62 +91,6 @@ def main():
     # template_tokens_len = get_template_tokens_len(tokenizer, os.path.join(data_args.dataset_path, "label.txt"))
 
     # Load and preprocess dataset.
-    """
-    train_ds = load_dataset(
-        read_local_dataset_with_uie_filter,
-        data_path=data_args.dataset_path,
-        data_file=data_args.train_file,
-        max_seq_len=training_args.max_seq_length,
-        template_tokens_len=template_tokens_len,
-        lazy=False,
-    )
-    dev_ds = load_dataset(
-        read_local_dataset_with_uie_filter,
-        data_path=data_args.dataset_path,
-        data_file=data_args.dev_file,
-        max_seq_len=training_args.max_seq_length,
-        template_tokens_len=template_tokens_len,
-        lazy=False,
-    )
-
-    test_ds = load_dataset(
-        read_local_dataset_with_uie_filter,
-        data_path=data_args.dataset_path,
-        data_file=data_args.test_file,
-        max_seq_len=training_args.max_seq_length,
-        special_word_len=template_tokens_len,
-        lazy=False,
-    )
-    """
-
-    """
-    train_ds = load_dataset(
-        read_local_dataset_by_chunk,
-        data_path=data_args.dataset_path,
-        data_file=data_args.train_file,
-        max_seq_len=training_args.max_seq_length,
-        template_tokens_len=template_tokens_len,
-        lazy=False,
-    )
-    dev_ds = load_dataset(
-        read_local_dataset_by_chunk,
-        data_path=data_args.dataset_path,
-        data_file=data_args.dev_file,
-        max_seq_len=training_args.max_seq_length,
-        template_tokens_len=template_tokens_len,
-        lazy=False,
-    )
-
-    test_ds = load_dataset(
-        read_local_dataset_by_chunk,
-        data_path=data_args.dataset_path,
-        data_file=data_args.test_file,
-        max_seq_len=training_args.max_seq_length,
-        template_tokens_len=template_tokens_len,
-        lazy=False,
-    )
-    """
-
     train_ds = load_dataset(
         read_local_dataset,
         data_path=data_args.dataset_path,
