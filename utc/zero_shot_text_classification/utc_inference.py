@@ -39,8 +39,8 @@ from typing import Any, Dict, List, Optional
 @dataclass
 class DataArguments:
     test_path: str = field(default="./data/processed_data_8000/processed_data.json", metadata={"help": "Test dataset file name."})
+    label_name_path: str = field(default="./data/data_1000/label.txt", metadata={"help": "The text file containing label names of the classfication task."})
     threshold: float = field(default=0.5, metadata={"help": "The threshold to produce predictions."})
-    single_label: str = field(default=False, metadata={"help": "Predict exactly one label per sample."})
 
 
 @dataclass
@@ -115,8 +115,6 @@ class InferenceUTCTemplate(UTCTemplate):
         return input_dict
 
 
-
-
 def main():
     # Parse the arguments.
     parser = PdArgumentParser((ModelArguments, DataArguments, PromptTuningArguments))
@@ -134,7 +132,7 @@ def main():
 
     # Load and preprocess dataset.
     if data_args.test_path is not None:
-        test_ds = load_dataset(read_inference_dataset, data_path=data_args.test_path, lazy=False)
+        test_ds = load_dataset(read_inference_dataset, data_path=data_args.test_path, lazy=False, options=data_args.label_name_path)
 
     # Initialize the prompt model.
     prompt_model = PromptModelForSequenceClassification(
@@ -156,22 +154,36 @@ def main():
     )
 
     if data_args.test_path is not None:
+        with open(data_args.label_name_path, "r", encoding="utf-8") as fp:
+            choices = [x.strip() for x in fp]
+
+        test_data = open(data_args.test_path, "r", encoding="utf-8") 
         test_ret = trainer.predict(test_ds)
-        with open(os.path.join(training_args.output_dir, "test_predictions.json"), "w", encoding="utf-8") as fp:
-            if data_args.single_label:
-                preds = paddle.nn.functional.softmax(paddle.to_tensor(test_ret.predictions), axis=-1)
-                for index, pred in enumerate(preds):
-                    result = {"id": index}
-                    result["labels"] = paddle.argmax(pred).item()
-                    result["probs"] = pred[result["labels"]].item()
-                    fp.write(json.dumps(result, ensure_ascii=False) + "\n")
-            else:
-                preds = paddle.nn.functional.sigmoid(paddle.to_tensor(test_ret.predictions))
-                for index, pred in enumerate(preds):
-                    result = {"id": index}
-                    result["labels"] = paddle.where(pred > data_args.threshold)[0].tolist()
-                    result["probs"] = pred[pred > data_args.threshold].tolist()
-                    fp.write(json.dumps(result, ensure_ascii=False) + "\n")
+
+        with open(os.path.join(training_args.output_dir, "inference_results.json"), "w", encoding="utf-8") as fp:    
+            preds = paddle.nn.functional.sigmoid(paddle.to_tensor(test_ret.predictions))
+
+            for index, example in enumerate(test_data):
+                
+                result = json.loads(example)
+
+                try:
+                    del(result["text_a"])
+                
+                except:
+                    pass
+
+                pred_ids = paddle.where(preds[index] > data_args.threshold)[0].tolist()    
+
+                result["pred_labels"] = {}
+                for choice in choices:
+                    result["pred_labels"][choice] = 0
+
+                if pred_ids:
+                    for pred_id in pred_ids:
+                        result["pred_labels"][choices[pred_id[0]]] = 1
+                        
+                fp.write(json.dumps(result, ensure_ascii=False) + "\n")
 
 
 if __name__ == "__main__":

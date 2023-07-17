@@ -1,0 +1,17 @@
+<View>
+   <Relations>
+    <Relation value="org:founded_by"/>
+    <Relation value="org:founded"/>
+  </Relations>
+  <Labels name="label" toName="text">
+    <Label value="精神慰撫金額" background="green"/>
+    <Label value="醫療費用" background="red"/>
+    <Label value="薪資收入" background="blue"/>
+  </Labels>
+
+  <Text name="text" value="$text"/>
+</View>
+
+<!-- {"data": {
+  "text": "Microsoft was founded by Bill Gates and Paul Allen on April 4, 1975, to develop and sell BASIC interpreters for the Altair 8800."
+}} -->

@@ -247,7 +247,7 @@ def uie_preprocessing():
     pass
 
 
-def read_inference_dataset(data_path, data_file=None, options="./data/label.txt"):
+def read_inference_dataset(data_path, data_file=None, options=None):
     """
     Load datasets with one example per line, formated as:
         {"text_a": X, "text_b": X, "question": X, "choices": [A, B], "labels": [0, 1]}
